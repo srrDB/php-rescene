@@ -163,9 +163,9 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
                 case '-r': // remove
                     if (array_key_exists(4, $argv)) {
                         $newName = $argv[4];
-			echo 'SRR file: ' . $srr . "\n";
-			echo 'Old name: ' . $file . "\n";
-			echo 'New name: ' . $newName . "\n";
+                        echo 'SRR file: ' . $srr . "\n";
+                        echo 'Old name: ' . $file . "\n";
+                        echo 'New name: ' . $newName . "\n";
                         if (renameFile($srr, $file, $newName)) {
                             echo 'File successfully renamed.';
                         } else {
@@ -178,19 +178,19 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
                 case '-v': // view
                     print_r(getStoredFile($srr, $file));
                     break;
-        case '-x': // extract
-            // strip the path info
-            $nopath = basename($file);
-            $result = file_put_contents($nopath, getStoredFile($srr, $file));
-            if ($result !== FALSE) {
-            echo 'File succesfully extracted';
-            } else {
-            echo 'Something went wrong. Did you provide a correct file name with path?';
-            }
+                case '-x': // extract
+                    // strip the path info
+                    $nopath = basename($file);
+                    $result = file_put_contents($nopath, getStoredFile($srr, $file));
+                    if ($result !== FALSE) {
+                        echo 'File succesfully extracted';
+                    } else {
+                        echo 'Something went wrong. Did you provide a correct file name with path?';
+                    }
                     break;   
                 case '-c': // compare
                     print_r(compareSrr($srr, $file));
-            break;
+                    break;
                 default:
                     echo 'Unknown parameter. Use -r, -a, -v, -x or -c.';
             }
@@ -199,8 +199,8 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
             $result = processSrr($srr);
             echo calculateHash($srr, $result['rarFiles']);
         } elseif ($switch === '-a') {
-        // show SRS info
-        print_r(processSrsData(file_get_contents($srr)));
+            // show SRS info
+            print_r(processSrsData(file_get_contents($srr)));
         } elseif ($switch === '-t') {
             echo 'fileNameCheckTest: ';
             if (fileNameCheckTest()) {
@@ -467,8 +467,8 @@ function processSrrHandle($fileHandle, $srrSize) {
                     array_push($warnings, "Unknown RAR block found in {$current_rar['fileName']}");
                 } else { // e.g. a rar file that still has its contents
                     array_push($warnings, 'ERROR: Not a SRR file?');
-					return FALSE;
-					//trigger_error('Not a SRR file.', E_USER_ERROR);
+                    return FALSE;
+                    //trigger_error('Not a SRR file.', E_USER_ERROR);
                 }
         }
 
@@ -668,16 +668,16 @@ function storeFile($srr, $filePath, $fdata) {
  */
 function renameFile($srr, $oldName, $newName) {
     if (fileNameCheck($newName)) {
-	print_r("The new file name is illegal. Use only forward slashes for paths.\n");
+        print_r("The new file name is illegal. Use only forward slashes for paths.\n");
         return FALSE;
     }
     $result = processSrr($srr);
 
     // prevent renaming to a file that already exists
     foreach ($result['storedFiles'] as $key => $value) {
-	if ($key === $newName) {
-	    return FALSE;
-	}
+        if ($key === $newName) {
+            return FALSE;
+        }
     }
 
     foreach ($result['storedFiles'] as $key => $value) {
@@ -763,13 +763,13 @@ function calculateHashString($srrData, $rarFiles, $algorithm='sha1') {
     foreach ($rarFiles as $key => $value) {
         echo $key;
         $start = $value['offsetStartRar'];
-    $end = $value['offsetEnd'];
+        $end = $value['offsetEnd'];
 
         $memoryLimit = 5 * 1024 * 1024;
-    $fp = fopen("php://temp/maxmemory:$memoryLimit", 'r+');
-    fputs($fp, $srrData);
-    rewind($fp);
-    $fileAttributes = fstat($fp);
+        $fp = fopen("php://temp/maxmemory:$memoryLimit", 'r+');
+        fputs($fp, $srrData);
+        rewind($fp);
+        $fileAttributes = fstat($fp);
 
         $data = getStoredFileDataHandle($fp, $start, ($end - $start));
         hash_update($hashContext, $data);
@@ -867,25 +867,25 @@ function compareSrrRaw($rone, $rtwo, $one, $two) {
 
     foreach ($oneNfo as $okey => $ovalue) {
         foreach ($twoNfo as $tkey => $tvalue) {
-        $toUnset = FALSE;
+            $toUnset = FALSE;
             if ($ovalue['hash'] === $tvalue['hash']) {
-        array_push($same, array($okey, $tkey,
+                array_push($same, array($okey, $tkey,
                 'lines1' => $ovalue['lines'], 'lines2' => $tvalue['lines']));
                 $toUnset = TRUE;
             } elseif ($ovalue['fileName'] === $tvalue['fileName']) {
-        // suggest the largest NFO file
-        if ($ovalue['fileSize'] > $tvalue['fileSize']) {
-            $best = 0;
-        } else {
-            $best = 1;
-        }
-        array_push($sameName, array($okey, $tkey, 'best' => $best, 
+                // suggest the largest NFO file
+                if ($ovalue['fileSize'] > $tvalue['fileSize']) {
+                    $best = 0;
+                } else {
+                    $best = 1;
+                }
+                array_push($sameName, array($okey, $tkey, 'best' => $best, 
                 'lines1' => $ovalue['lines'], 'lines2' => $tvalue['lines']));
                 $toUnset = TRUE;
                 // TODO: show text diff?
             }
             if ($toUnset) {
-        // remove from the array
+                // remove from the array
                 unset($uniqueOne[$okey]);
                 unset($uniqueTwo[$tkey]);
             }
@@ -905,19 +905,19 @@ function compareSrrRaw($rone, $rtwo, $one, $two) {
         foreach ($twoSfv as $tkey => $tvalue) {
         $toUnset = FALSE;
             if ($ovalue['files'] === $tvalue['files']) {
-        // suggest the SFV file with the most comments
-        if (count($ovalue['comments']) > count($tvalue['comments'])) {
-            $best = 0;
-        } elseif (count($ovalue['comments']) < count($tvalue['comments'])) {
-            $best = 1;
-        } else {
-            // SFV with the longest file name has probably path info
-            if (strlen($ovalue['fileName']) > strlen($tvalue['fileName'])) {
-            $best = 0;
-            } else {
-            $best = 1;
-            }
-        }
+                // suggest the SFV file with the most comments
+                if (count($ovalue['comments']) > count($tvalue['comments'])) {
+                    $best = 0;
+                } elseif (count($ovalue['comments']) < count($tvalue['comments'])) {
+                    $best = 1;
+                } else {
+                    // SFV with the longest file name has probably path info
+                    if (strlen($ovalue['fileName']) > strlen($tvalue['fileName'])) {
+                        $best = 0;
+                    } else {
+                        $best = 1;
+                    }
+                }
                 array_push($same, array($okey, $tkey, 'best' => $best));
                 $toUnset = TRUE;
             } elseif ($ovalue['fileName'] === $tvalue['fileName']) {
@@ -944,32 +944,33 @@ function compareSrrRaw($rone, $rtwo, $one, $two) {
     //print_r($twoSrs); 
     foreach ($oneSrs as $okey => $ovalue) {
         foreach ($twoSrs as $tkey => $tvalue) {
-        $toUnset = FALSE;
-        // sample name and crc32 must be the same to be the same sample
-        if ($ovalue['fileData']->name === $tvalue['fileData']->name &&
-        $ovalue['fileData']->crc32 === $tvalue['fileData']->crc32) {
-        // checked agains main AVI/MKV file
-        if ($ovalue['trackData'][1]->matchOffset === $tvalue['trackData'][1]->matchOffset) {
-            // equal enough
-            array_push($same, array($okey, $tkey));
-            $toUnset = TRUE;
-        } else {
-            // -c parameter difference
-            // indicate which one had the -c parameter used
-            if ($ovalue['trackData'][1]->matchOffset != 0) {
-            $best = 0;
-            } elseif ($tvalue['trackData'][1]->matchOffset != 0) {
-            $best = 1;
-            } else {
-            // suggest longest file name
-            if (strlen($ovalue['fileName']) > strlen($tvalue['fileName'])) {
-                $best = 0;
-            } else {
-                $best = 1;
-            }            }
-            array_push($sameName, array($okey, $tkey, 'best' => $best));
-            $toUnset = TRUE;
-        }
+            $toUnset = FALSE;
+            // sample name and crc32 must be the same to be the same sample
+            if ($ovalue['fileData']->name === $tvalue['fileData']->name &&
+                $ovalue['fileData']->crc32 === $tvalue['fileData']->crc32) {
+                // checked agains main AVI/MKV file
+                if ($ovalue['trackData'][1]->matchOffset === $tvalue['trackData'][1]->matchOffset) {
+                    // equal enough
+                    array_push($same, array($okey, $tkey));
+                    $toUnset = TRUE;
+                } else {
+                    // -c parameter difference
+                    // indicate which one had the -c parameter used
+                    if ($ovalue['trackData'][1]->matchOffset != 0) {
+                        $best = 0;
+                    } elseif ($tvalue['trackData'][1]->matchOffset != 0) {
+                        $best = 1;
+                    } else {
+                        // suggest longest file name
+                        if (strlen($ovalue['fileName']) > strlen($tvalue['fileName'])) {
+                            $best = 0;
+                        } else {
+                            $best = 1;
+                        }
+                    }
+                    array_push($sameName, array($okey, $tkey, 'best' => $best));
+                    $toUnset = TRUE;
+                }
             }
             if ($toUnset) {
                 unset($uniqueOne[$okey]);
@@ -981,12 +982,12 @@ function compareSrrRaw($rone, $rtwo, $one, $two) {
     // *** OTHER ***
     foreach ($filesOne as $okey => $ovalue) {
         foreach ($filesTwo as $tkey => $tvalue) {
-        $toUnset = FALSE;
-        // same CRC: exactly the same
+            $toUnset = FALSE;
+            // same CRC: exactly the same
             if ($ovalue['fileCrc'] === $tvalue['fileCrc']) {
                 array_push($same, array($okey, $tkey));
                 $toUnset = TRUE;
-        // they only have the same name
+            // they only have the same name
             } elseif ($ovalue['fileName'] === $tvalue['fileName']) {
                 array_push($sameName, array($okey, $tkey));
                 $toUnset = TRUE;
@@ -1033,11 +1034,11 @@ function getFilesByExt($fileList, $extention) {
 function addNfoHash($list, $srrFile) {
     foreach($list as $key => $value) {
         // store nfo hash next to the other stored file data
-    $nfoData = getStoredFileData($srrFile, $value['fileOffset'], $value['fileSize']);
+        $nfoData = getStoredFileData($srrFile, $value['fileOffset'], $value['fileSize']);
         $list[$key]['hash'] = nfoHash($nfoData);
-    // check for which nfo has the fewest lines -> probably no unnessesary white lines
-    // Indiana.Jones.And.The.Last.Crusade.1989.PAL.DVDR-DNA
-    $list[$key]['lines'] = count(explode("\n", $nfoData));
+        // check for which nfo has the fewest lines -> probably no unnessesary white lines
+        // Indiana.Jones.And.The.Last.Crusade.1989.PAL.DVDR-DNA
+        $list[$key]['lines'] = count(explode("\n", $nfoData));
     }
     return $list;
 }
@@ -1054,7 +1055,7 @@ function addSfvInfo($list, $srrFile) {
 function addSrsInfo($list, $srrFile) {
     foreach($list as $key => $value) {
         $result = processSrsData(getStoredFileData($srrFile, $value['fileOffset'], $value['fileSize']));
-    //print_r($result);
+        //print_r($result);
         $list[$key] += $result;
     }
     return $list;
@@ -1442,8 +1443,8 @@ function detectFileFormat($fileHandle) {
         $ft = FileType::AVI;
         break;
     default:
-		if ('66747970' ===  bin2hex(fread($fileHandle, 4))) {
-			$ft = FileType::MP4;
+        if ('66747970' ===  bin2hex(fread($fileHandle, 4))) {
+            $ft = FileType::MP4;
         }
     }
     rewind($fileHandle);
@@ -1457,23 +1458,23 @@ function parse_srs_avi($fh, $srsSize) {
     $rr = new RiffReader($fh, $srsSize);
     $done = false;
     while (!$done && $rr->read()) {
-		if ($rr->chunkType == 'LIST') {
-			$rr->moveToChild();
-		} else {
-			if ($rr->fourcc == 'SRSF') {
-			$data = $rr->readContents();
-			$result['fileData'] = new FileData($data);
-			} elseif ($rr->fourcc == 'SRST') {
-			$data = $rr->readContents();
-			$track = new TrackData($data);
-			$result['trackData'][$track->trackNumber] = $track;
-			} elseif ($rr->chunkType == 'MOVI') {
-			$done = true;
-			break;
-			} else {
-			$rr->skipContents();
-			}
-		}
+        if ($rr->chunkType == 'LIST') {
+            $rr->moveToChild();
+        } else {
+            if ($rr->fourcc == 'SRSF') {
+                $data = $rr->readContents();
+                $result['fileData'] = new FileData($data);
+            } elseif ($rr->fourcc == 'SRST') {
+                $data = $rr->readContents();
+                $track = new TrackData($data);
+                $result['trackData'][$track->trackNumber] = $track;
+            } elseif ($rr->chunkType == 'MOVI') {
+                $done = true;
+                break;
+            } else {
+                $rr->skipContents();
+            }
+        }
     }
     return $result;
 }
@@ -1496,21 +1497,21 @@ function parse_srs_mkv($fh, $srsSize) {
     $er = new EbmlReader($fh, $srsSize);
     $done = false;
     while(!$done && $er->read()) {
-		if ($er->etype == EbmlType::Segment || $er->etype == EbmlType::ReSample) {
-			$er->moveToChild();
-		} elseif ($er->etype == EbmlType::ReSampleFile) {
-			$data = $er->readContents();
-			$result['fileData'] = new FileData($data);
-		} elseif ($er->etype == EbmlType::ReSampleTrack) {
-			$data = $er->readContents();
-			$track = new TrackData($data);
-			$result['trackData'][$track->trackNumber] = $track;
-		} elseif ($er->etype == EbmlType::Cluster || $er->etype == EbmlType::AttachmentList) {
-			$er->skipContents();
-			$done = true;
-		} else {
-			$er->skipContents();
-		}
+        if ($er->etype == EbmlType::Segment || $er->etype == EbmlType::ReSample) {
+            $er->moveToChild();
+        } elseif ($er->etype == EbmlType::ReSampleFile) {
+            $data = $er->readContents();
+            $result['fileData'] = new FileData($data);
+        } elseif ($er->etype == EbmlType::ReSampleTrack) {
+            $data = $er->readContents();
+            $track = new TrackData($data);
+            $result['trackData'][$track->trackNumber] = $track;
+        } elseif ($er->etype == EbmlType::Cluster || $er->etype == EbmlType::AttachmentList) {
+            $er->skipContents();
+            $done = true;
+        } else {
+            $er->skipContents();
+        }
     }
     return $result;
 }
@@ -1521,259 +1522,259 @@ function parse_srs_mp4($fh, $srsSize) {
 
 class FileData {
     public function __construct($data) {
-		$u = unpack('vflags/vappLength', substr($data, 0, 4));
-		$this->flags = $u['flags'];
-		$this->appName = substr($data, 4, $u['appLength']);
-		$v = unpack('vnameLength', substr($data, 4 + $u['appLength'], 2));
-		$this->name = substr($data, 4 + $u['appLength'] + 2, $v['nameLength']);
-		$offset = 4 + $u['appLength'] + 2 + $v['nameLength'];
+        $u = unpack('vflags/vappLength', substr($data, 0, 4));
+        $this->flags = $u['flags'];
+        $this->appName = substr($data, 4, $u['appLength']);
+        $v = unpack('vnameLength', substr($data, 4 + $u['appLength'], 2));
+        $this->name = substr($data, 4 + $u['appLength'] + 2, $v['nameLength']);
+        $offset = 4 + $u['appLength'] + 2 + $v['nameLength'];
 
-		$w = unpack('Vlow/Vhigh/Vcrc32', substr($data, $offset, 12));
-			// add the high order bits before the low order bits and convert to decimal
-		$lowhex = str_pad(dechex($w['low']), 8, '0', STR_PAD_LEFT);
-		$highhex = dechex($w['high']);
-		$this->fileSize = hexdec($highhex . $lowhex);
-		$this->crc32 = dechex($w['crc32']);
+        $w = unpack('Vlow/Vhigh/Vcrc32', substr($data, $offset, 12));
+        // add the high order bits before the low order bits and convert to decimal
+        $lowhex = str_pad(dechex($w['low']), 8, '0', STR_PAD_LEFT);
+        $highhex = dechex($w['high']);
+        $this->fileSize = hexdec($highhex . $lowhex);
+        $this->crc32 = dechex($w['crc32']);
     }
 }
 
 class TrackData {
     public function __construct($data) {
-		$u = unpack('vflags/vtrackNumber', substr($data, 0, 4));
-		$this->flags = $u['flags'];
-		$this->trackNumber = $u['trackNumber'];
-		//TODO: mp4 support
-		
-		
-		
-		
-		
-		if ($this->flags & 0x4) { // big file
-			$w = unpack('Vlow/Vhigh', substr($data, 4, 8));
-			$lowhex = str_pad(dechex($w['low']), 8, '0', STR_PAD_LEFT);
-			$highhex = dechex($w['high']);
-			$this->dataSize = hexdec($highhex . $lowhex);
-			$add = 8;
-		} else {
-			$w = unpack('Vsize', substr($data, 4, 4));
-			$this->dataSize = $w['size'];
-			$add = 4;
-		}
-		$w = unpack('Vlow/Vhigh', substr($data, 4 + $add, 8));
-		$lowhex = str_pad(dechex($w['low']), 8, '0', STR_PAD_LEFT);
-		$highhex = dechex($w['high']);
-		// location where the track is located in the main file (often zero)
-		$this->matchOffset = hexdec($highhex . $lowhex);
-		// signature length and signature bytes we don't need
+        $u = unpack('vflags/vtrackNumber', substr($data, 0, 4));
+        $this->flags = $u['flags'];
+        $this->trackNumber = $u['trackNumber'];
+        //TODO: mp4 support
+        
+        
+        
+        
+        
+        if ($this->flags & 0x4) { // big file
+            $w = unpack('Vlow/Vhigh', substr($data, 4, 8));
+            $lowhex = str_pad(dechex($w['low']), 8, '0', STR_PAD_LEFT);
+            $highhex = dechex($w['high']);
+            $this->dataSize = hexdec($highhex . $lowhex);
+            $add = 8;
+        } else {
+            $w = unpack('Vsize', substr($data, 4, 4));
+            $this->dataSize = $w['size'];
+            $add = 4;
+        }
+        $w = unpack('Vlow/Vhigh', substr($data, 4 + $add, 8));
+        $lowhex = str_pad(dechex($w['low']), 8, '0', STR_PAD_LEFT);
+        $highhex = dechex($w['high']);
+        // location where the track is located in the main file (often zero)
+        $this->matchOffset = hexdec($highhex . $lowhex);
+        // signature length and signature bytes we don't need
     }
 }
 
 class RiffReader {
     public function __construct($fileHandle, $srsSize) {
-		$this->fh = $fileHandle;
-		$this->fileSize = $srsSize;
-		$this->readDone = true;
+        $this->fh = $fileHandle;
+        $this->fileSize = $srsSize;
+        $this->readDone = true;
 
-		$this->chunkType = null;
-		$this->hasPadding = false;
-		$this->chunkLength = 0;
-		$this->fourcc = '';
+        $this->chunkType = null;
+        $this->hasPadding = false;
+        $this->chunkLength = 0;
+        $this->fourcc = '';
     }
 
     public function read() {
-		$chunkStartPosition = ftell($this->fh);
-		$this->readDone = false;
+        $chunkStartPosition = ftell($this->fh);
+        $this->readDone = false;
 
-		if ($chunkStartPosition + 8 > $this->fileSize) {
-			return false;
-		}
+        if ($chunkStartPosition + 8 > $this->fileSize) {
+            return false;
+        }
 
-		$header = fread($this->fh, 8);
-		$this->fourcc = substr($header, 0, 4);
-		$this->chunkLength = unpack('Vlength', substr($header, 4, 4));
-		$this->chunkLength = $this->chunkLength['length']; 
+        $header = fread($this->fh, 8);
+        $this->fourcc = substr($header, 0, 4);
+        $this->chunkLength = unpack('Vlength', substr($header, 4, 4));
+        $this->chunkLength = $this->chunkLength['length']; 
 
-		if ($this->fourcc == 'RIFF' || $this->fourcc == 'LIST') {
-			fseek($this->fh, 4, SEEK_CUR);
-			//echo $this->chunkLength . "\n";
-			$this->chunkLength -= 4;
-			$this->chunkType = 'LIST';
-		} else {
-			if (ctype_digit(substr($header, 0, 2))) {
-			$this->chunkType = 'MOVI';
-			} else {
-			$this->chunkType = '    ';
-			}
-		}
-		$this->hasPadding = $this->chunkLength % 2 == 1;
+        if ($this->fourcc == 'RIFF' || $this->fourcc == 'LIST') {
+            fseek($this->fh, 4, SEEK_CUR);
+            //echo $this->chunkLength . "\n";
+            $this->chunkLength -= 4;
+            $this->chunkType = 'LIST';
+        } else {
+            if (ctype_digit(substr($header, 0, 2))) {
+            $this->chunkType = 'MOVI';
+            } else {
+            $this->chunkType = '    ';
+            }
+        }
+        $this->hasPadding = $this->chunkLength % 2 == 1;
 
-		return true;
+        return true;
     }
 
     public function readContents() {
-		if ($this->readDone) {
-			fseek($this->fh, -$this->chunkLength - $this->hasPadding, SEEK_CUR);
-		}
+        if ($this->readDone) {
+            fseek($this->fh, -$this->chunkLength - $this->hasPadding, SEEK_CUR);
+        }
 
-		$this->readDone = true;
-		$buffer = null;
+        $this->readDone = true;
+        $buffer = null;
 
-		if ($this->chunkType != 'MOVI') {
-			$buffer = fread($this->fh, $this->chunkLength);
-		}
+        if ($this->chunkType != 'MOVI') {
+            $buffer = fread($this->fh, $this->chunkLength);
+        }
 
-		if ($this->hasPadding) {
-			fseek($this->fh, 1, SEEK_CUR);
-		}
-		return $buffer;
+        if ($this->hasPadding) {
+            fseek($this->fh, 1, SEEK_CUR);
+        }
+        return $buffer;
     }
 
     public function skipContents() {
-		if (!$this->readDone) {
-			$this->readDone = true;
+        if (!$this->readDone) {
+            $this->readDone = true;
 
-			if ($this->chunkType != 'MOVI') {
-				fseek($this->fh, $this->chunkLength, SEEK_CUR);
-			}
+            if ($this->chunkType != 'MOVI') {
+                fseek($this->fh, $this->chunkLength, SEEK_CUR);
+            }
 
-			if ($this->hasPadding) {
-				fseek($this->fh, 1, SEEK_CUR);
-			}
-		}
+            if ($this->hasPadding) {
+                fseek($this->fh, 1, SEEK_CUR);
+            }
+        }
     }
 
     public function moveToChild() {
-		$this->readDone = true;
+        $this->readDone = true;
     }
 }
 
 class EbmlReader {
     public function __construct($fileHandle, $srsSize) {
-		$this->fh = $fileHandle;
-		$this->fileSize = $srsSize;
-		$this->readDone = true;
+        $this->fh = $fileHandle;
+        $this->fileSize = $srsSize;
+        $this->readDone = true;
 
-		$this->etype = null;
-		$this->elementLength = 0;
+        $this->etype = null;
+        $this->elementLength = 0;
     }
 
     private function String2Hex($string){
-		$hex='';
-			for ($i=0; $i < strlen($string); $i++){
-				$hex .= str_pad(dechex(ord($string[$i])), 2,  '0', STR_PAD_LEFT);
-			}
-		return $hex;
+        $hex='';
+            for ($i=0; $i < strlen($string); $i++){
+                $hex .= str_pad(dechex(ord($string[$i])), 2,  '0', STR_PAD_LEFT);
+            }
+        return $hex;
     }
     
     public function read() {
-		assert ($this->readDone == true || $this->etype == EbmlType::Block);
-		// too little data
-		if (ftell($this->fh) + 2 > $this->fileSize) {
-			return false;
-		}
+        assert ($this->readDone == true || $this->etype == EbmlType::Block);
+        // too little data
+        if (ftell($this->fh) + 2 > $this->fileSize) {
+            return false;
+        }
 
-		$this->readDone = false;
+        $this->readDone = false;
 
-		// element ID
-		$readByte = ord(fread($this->fh, 1));
-		$idLengthDescriptor = $this->getUIntLength($readByte);
-		$elementHeader = str_pad(dechex($readByte), 2,  '0', STR_PAD_LEFT);
-		if ($idLengthDescriptor > 1) {
-			$elementHeader .= $this->String2Hex(fread($this->fh, $idLengthDescriptor - 1));
-		}
+        // element ID
+        $readByte = ord(fread($this->fh, 1));
+        $idLengthDescriptor = $this->getUIntLength($readByte);
+        $elementHeader = str_pad(dechex($readByte), 2,  '0', STR_PAD_LEFT);
+        if ($idLengthDescriptor > 1) {
+            $elementHeader .= $this->String2Hex(fread($this->fh, $idLengthDescriptor - 1));
+        }
 
-		// data size
-		$readByte = ord(fread($this->fh, 1));
-		$dataLengthDescriptor = $this->getUIntLength($readByte);
-		$elementHeader .= str_pad(dechex($readByte), 2,  '0', STR_PAD_LEFT);
-		if ($dataLengthDescriptor > 1) {
-			$elementHeader .= $this->String2Hex(fread($this->fh, $dataLengthDescriptor - 1));
-		}
+        // data size
+        $readByte = ord(fread($this->fh, 1));
+        $dataLengthDescriptor = $this->getUIntLength($readByte);
+        $elementHeader .= str_pad(dechex($readByte), 2,  '0', STR_PAD_LEFT);
+        if ($dataLengthDescriptor > 1) {
+            $elementHeader .= $this->String2Hex(fread($this->fh, $dataLengthDescriptor - 1));
+        }
 
-		assert ($idLengthDescriptor + $dataLengthDescriptor == strlen($elementHeader)/2);
-		if ($idLengthDescriptor + $dataLengthDescriptor != strlen($elementHeader)/2)
-			exit();
+        assert ($idLengthDescriptor + $dataLengthDescriptor == strlen($elementHeader)/2);
+        if ($idLengthDescriptor + $dataLengthDescriptor != strlen($elementHeader)/2)
+            exit();
 
-		// data
-		$eh = strtoupper(substr($elementHeader, 0, 2*$idLengthDescriptor));
-		switch ($eh) {
-			case 'A1':
-			case 'A2':
-				$this->etype = EbmlType::Block;
-				break;
-			case '1F43B675':
-				$this->etype = EbmlType::Cluster;
-				break;
-			case '18538067':
-				$this->etype = EbmlType::Segment;
-				break;
-			case '1941A469':
-				$this->etype = EbmlType::AttachmentList;
-				break;
-			case '1F697576':
-				$this->etype = EbmlType::ReSample;
-				break;
-			case '6A75':
-				$this->etype = EbmlType::ReSampleFile;
-				break;
-			case '6B75':
-				$this->etype = EbmlType::ReSampleTrack;
-				break;
-			default:
-				$this->etype = EbmlType::Unknown;
-		}
+        // data
+        $eh = strtoupper(substr($elementHeader, 0, 2*$idLengthDescriptor));
+        switch ($eh) {
+            case 'A1':
+            case 'A2':
+                $this->etype = EbmlType::Block;
+                break;
+            case '1F43B675':
+                $this->etype = EbmlType::Cluster;
+                break;
+            case '18538067':
+                $this->etype = EbmlType::Segment;
+                break;
+            case '1941A469':
+                $this->etype = EbmlType::AttachmentList;
+                break;
+            case '1F697576':
+                $this->etype = EbmlType::ReSample;
+                break;
+            case '6A75':
+                $this->etype = EbmlType::ReSampleFile;
+                break;
+            case '6B75':
+                $this->etype = EbmlType::ReSampleTrack;
+                break;
+            default:
+                $this->etype = EbmlType::Unknown;
+        }
 
-		$this->elementLength = $this->getEbmlUInt($elementHeader, $idLengthDescriptor, $dataLengthDescriptor);
+        $this->elementLength = $this->getEbmlUInt($elementHeader, $idLengthDescriptor, $dataLengthDescriptor);
 
-		return true;
+        return true;
     }
 
     private function getUIntLength($lengthDescriptor) {
-		$length = 0;
-		for ($i=0;$i<8;$i++) {
-			if (($lengthDescriptor & (0x80 >> $i)) != 0) {
-				$length = $i + 1;
-				break;
-			}
-		}
-		return $length;
+        $length = 0;
+        for ($i=0;$i<8;$i++) {
+            if (($lengthDescriptor & (0x80 >> $i)) != 0) {
+                $length = $i + 1;
+                break;
+            }
+        }
+        return $length;
     }
 
     private function getEbmlUInt($buff, $offset, $count) {
-		$size = hexdec(substr($buff, $offset*2, 2)) & (0xFF >> $count);
-		for ($i=1;$i<$count;$i++) {
-			$size = ($size << 8) + hexdec(substr($buff, $offset*2+$i*2, 2));
-		}
-		return $size;
+        $size = hexdec(substr($buff, $offset*2, 2)) & (0xFF >> $count);
+        for ($i=1;$i<$count;$i++) {
+            $size = ($size << 8) + hexdec(substr($buff, $offset*2+$i*2, 2));
+        }
+        return $size;
     }
 
     public function readContents() {
-		if ($this->readDone) {
-			fseek($this->fh, -$this->elementLength, SEEK_CUR);
-		}
+        if ($this->readDone) {
+            fseek($this->fh, -$this->elementLength, SEEK_CUR);
+        }
 
-		$this->readDone = true;
-		$buffer = null;
+        $this->readDone = true;
+        $buffer = null;
 
-		// skip over removed ebml elements
-		if ($this->etype != EbmlType::Block) {
-			$buffer = fread($this->fh, $this->elementLength);
-		}
-		return $buffer;
+        // skip over removed ebml elements
+        if ($this->etype != EbmlType::Block) {
+            $buffer = fread($this->fh, $this->elementLength);
+        }
+        return $buffer;
     }
 
     public function skipContents() {
-		if (!$this->readDone) {
-			$this->readDone = true;
+        if (!$this->readDone) {
+            $this->readDone = true;
 
-			if ($this->etype != EbmlType::Block) {
-			fseek($this->fh, $this->elementLength, SEEK_CUR);
-			}
-		}
+            if ($this->etype != EbmlType::Block) {
+                fseek($this->fh, $this->elementLength, SEEK_CUR);
+            }
+        }
     }
 
     public function moveToChild() {
-		$this->readDone = true;
+        $this->readDone = true;
     }
 }
 
