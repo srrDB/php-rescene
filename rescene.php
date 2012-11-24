@@ -22,59 +22,59 @@
 
 /*
  * LGPLv3 with Affero clause (LAGPL)
-* See http://mo.morsi.org/blog/node/270
-* rescene.php written on 2011-07-27
-* Last version: 2012-09-12
-*
-* Features:
-*  - process a SRR file which returns:
-*     - SRR file size.
-*     - Application name of the tool used to create the SRR file.
-*     - List of files stored in the SRR.
-*     - List of RAR volumes the SRR can reconstruct.
-*     - List of files that are archived inside these RARs.
-*     - Size of all Recovery Records inside the SRR file.
-*     - Comments inside SFV files.
-*     - Warnings when something unusual is found with the SRR.
-*  - Remove a stored file.
-*  - Rename a stored file.
-*  - Add a stored file.
-*  - Read a stored file.
-*  - Extract a stored file.
-*  - Calculate a hash of the SRR based on RAR metadata.
-*  - Sorting of the stored file names.
-*  - process in memory SRR 'file'
-*  - compare two SRR files
-*      - nfo: ignore line endings
-*      - sfv: sort it before comparing and remove comment lines
-*      - rar metadata
-*          -> quick: by hash
-*          -> see what is missing
-*      - other files
-*          -> quick: by hash
-*  - Output flag added to indicate if the RARs used compression.
-*  - Support to read SRS files. (AVI/MKV)
-*
-*  - nfo compare: strip line endings + new line?
-*      Indiana.Jones.And.The.Last.Crusade.1989.PAL.DVDR-DNA
-*
-* List of possible features/todo list:
-*  - process in memory SRR 'file' + other API functions (very low priority)
-*      => can be done using temp files in memory
-*  - compare SRS files
-*  - refactor compare SRR
-*  - merge SRRs (Python script exists)
-*  - encryption sanity check
-*  - add paths before the rar files
-*  - detect when SRR is cut/metadata from rars missing
-*      => hard to do correctly (SFVs subs exist too)
-*  - how to throw errors correctly?
-*  - sorting the list of the stored files by hand
-*  - make it impossible to rename to an existing file
-*  - "Application name found in the middle of the SRR."
-*    causes hashes to be different
-*
-*/
+ * See http://mo.morsi.org/blog/node/270
+ * rescene.php written on 2011-07-27
+ * Last version: 2012-11-24
+ *
+ * Features:
+ *  - process a SRR file which returns:
+ *     - SRR file size.
+ *     - Application name of the tool used to create the SRR file.
+ *     - List of files stored in the SRR.
+ *     - List of RAR volumes the SRR can reconstruct.
+ *     - List of files that are archived inside these RARs.
+ *     - Size of all Recovery Records inside the SRR file.
+ *     - Comments inside SFV files.
+ *     - Warnings when something unusual is found with the SRR.
+ *  - Remove a stored file.
+ *  - Rename a stored file.
+ *  - Add a stored file.
+ *  - Read a stored file.
+ *  - Extract a stored file.
+ *  - Calculate a hash of the SRR based on RAR metadata.
+ *  - Sorting of the stored file names.
+ *  - process in memory SRR 'file'
+ *  - compare two SRR files
+ *      - nfo: ignore line endings
+ *      - sfv: sort it before comparing and remove comment lines
+ *      - rar metadata
+ *          -> quick: by hash
+ *          -> see what is missing
+ *      - other files
+ *          -> quick: by hash
+ *  - Output flag added to indicate if the RARs used compression.
+ *  - Support to read SRS files. (AVI/MKV)
+ *
+ *  - nfo compare: strip line endings + new line?
+ *      Indiana.Jones.And.The.Last.Crusade.1989.PAL.DVDR-DNA
+ *
+ * List of possible features/todo list:
+ *  - process in memory SRR 'file' + other API functions (very low priority)
+ *      => can be done using temp files in memory
+ *  - compare SRS files
+ *  - refactor compare SRR
+ *  - merge SRRs (Python script exists)
+ *  - encryption sanity check
+ *  - add paths before the rar files
+ *  - detect when SRR is cut/metadata from rars missing
+ *      => hard to do correctly (SFVs subs exist too)
+ *  - how to throw errors correctly?
+ *  - sorting the list of the stored files by hand
+ *  - make it impossible to rename to an existing file
+ *  - "Application name found in the middle of the SRR."
+ *    causes hashes to be different
+ *
+ */
 
 
 $BLOCKNAME = array(
@@ -1814,6 +1814,7 @@ class EbmlReader {
         $this->readDone = TRUE;
     }
 }
+
 
 class MovReader {
     public function __construct($fileHandle, $srsSize) {
