@@ -7,13 +7,13 @@
  * it under the terms of GNU Affero General Public License
  * as published by the Free Software Foundation, either version 3
  * of the License, or (at your option) any later version.
- * 
+ *
  * You should have received a copy of the the GNU Affero
  * General Public License, along with rescene.php. If not, see
  * http://www.gnu.org/licenses/agpl.html
- * 
+ *
  * Additional permission under the GNU Affero GPL version 3 section 7:
- * 
+ *
  * If you modify this Program, or any covered work, by linking or
  * combining it with other code, such other code is not for that reason
  * alone subject to any of the requirements of the GNU Affero GPL
@@ -22,99 +22,100 @@
 
 /*
  * LGPLv3 with Affero clause (LAGPL)
- * See http://mo.morsi.org/blog/node/270
- * rescene.php written on 2011-07-27
- * Last version: 2012-09-12
- * 
- * Features:
- *  - process a SRR file which returns:
- *     - SRR file size.
- *     - Application name of the tool used to create the SRR file.
- *     - List of files stored in the SRR.
- *     - List of RAR volumes the SRR can reconstruct.
- *     - List of files that are archived inside these RARs.
- *     - Size of all Recovery Records inside the SRR file.
- *     - Comments inside SFV files.
- *     - Warnings when something unusual is found with the SRR.
- *  - Remove a stored file.
- *  - Rename a stored file.
- *  - Add a stored file.
- *  - Read a stored file.
- *  - Extract a stored file.
- *  - Calculate a hash of the SRR based on RAR metadata.
- *  - Sorting of the stored file names.
- *  - process in memory SRR 'file'
- *  - compare two SRR files
- *      - nfo: ignore line endings
- *      - sfv: sort it before comparing and remove comment lines
- *      - rar metadata
- *          -> quick: by hash
- *          -> see what is missing
- *      - other files
- *          -> quick: by hash
- *  - Output flag added to indicate if the RARs used compression.
- *  - Support to read SRS files. (AVI/MKV)
- *  
- *  - nfo compare: strip line endings + new line?
- *      Indiana.Jones.And.The.Last.Crusade.1989.PAL.DVDR-DNA
- *
- * List of possible features/todo list:
- *  - process in memory SRR 'file' + other API functions (very low priority)
- *      => can be done using temp files in memory
- *  - compare SRS files
- *  - refactor compare SRR
- *  - merge SRRs (Python script exists)
- *  - encryption sanity check
- *  - add paths before the rar files
- *  - detect when SRR is cut/metadata from rars missing
- *      => hard to do correctly (SFVs subs exist too)
- *  - how to throw errors correctly?
- *  - sorting the list of the stored files by hand
- *  - make it impossible to rename to an existing file
- *  - "Application name found in the middle of the SRR."
- *    causes hashes to be different
- * 
- */ 
+* See http://mo.morsi.org/blog/node/270
+* rescene.php written on 2011-07-27
+* Last version: 2012-09-12
+*
+* Features:
+*  - process a SRR file which returns:
+*     - SRR file size.
+*     - Application name of the tool used to create the SRR file.
+*     - List of files stored in the SRR.
+*     - List of RAR volumes the SRR can reconstruct.
+*     - List of files that are archived inside these RARs.
+*     - Size of all Recovery Records inside the SRR file.
+*     - Comments inside SFV files.
+*     - Warnings when something unusual is found with the SRR.
+*  - Remove a stored file.
+*  - Rename a stored file.
+*  - Add a stored file.
+*  - Read a stored file.
+*  - Extract a stored file.
+*  - Calculate a hash of the SRR based on RAR metadata.
+*  - Sorting of the stored file names.
+*  - process in memory SRR 'file'
+*  - compare two SRR files
+*      - nfo: ignore line endings
+*      - sfv: sort it before comparing and remove comment lines
+*      - rar metadata
+*          -> quick: by hash
+*          -> see what is missing
+*      - other files
+*          -> quick: by hash
+*  - Output flag added to indicate if the RARs used compression.
+*  - Support to read SRS files. (AVI/MKV)
+*
+*  - nfo compare: strip line endings + new line?
+*      Indiana.Jones.And.The.Last.Crusade.1989.PAL.DVDR-DNA
+*
+* List of possible features/todo list:
+*  - process in memory SRR 'file' + other API functions (very low priority)
+*      => can be done using temp files in memory
+*  - compare SRS files
+*  - refactor compare SRR
+*  - merge SRRs (Python script exists)
+*  - encryption sanity check
+*  - add paths before the rar files
+*  - detect when SRR is cut/metadata from rars missing
+*      => hard to do correctly (SFVs subs exist too)
+*  - how to throw errors correctly?
+*  - sorting the list of the stored files by hand
+*  - make it impossible to rename to an existing file
+*  - "Application name found in the middle of the SRR."
+*    causes hashes to be different
+*
+*/
 
 
 $BLOCKNAME = array(
-     0x69 => 'SRR VolumeHeader',
-     0x6A => 'SRR Stored File',
-     0x71 => 'SRR RAR subblock',
-     0x72 => 'RAR Marker',
-     0x73 => 'Archive Header',
-     0x74 => 'File',
-     0x75 => 'Old style - Comment',
-     0x76 => 'Old style - Extra info (authenticity information)',
-     0x77 => 'Old style - Subblock',
-     0x78 => 'Old style - Recovery record',
-     0x79 => 'Old style - Archive authenticity',
-     0x7A => 'New-format subblock',
-     0x7B => 'Archive end'
+0x69 => 'SRR VolumeHeader',
+0x6A => 'SRR Stored File',
+0x71 => 'SRR RAR subblock',
+0x72 => 'RAR Marker',
+0x73 => 'Archive Header',
+0x74 => 'File',
+0x75 => 'Old style - Comment',
+0x76 => 'Old style - Extra info (authenticity information)',
+0x77 => 'Old style - Subblock',
+0x78 => 'Old style - Recovery record',
+0x79 => 'Old style - Archive authenticity',
+0x7A => 'New-format subblock',
+0x7B => 'Archive end'
 );
 
 class FileType {
     const MKV = 'MKV';
     const AVI = 'AVI';
     const MP4 = 'MP4';
+    const WMV = 'WMV';
     const Unknown = '';
 }
 
 // cli progs are cool
 if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
     /* How to use the CLI version in Windows:
-        - Download and install PHP.  http://windows.php.net/download/
-        - Run this script by entering something like
-            C:\Program Files (x86)\PHP\php.exe rescene.php
-          in the command prompt.
-        - [Add 'C:\Program Files (x86)\PHP' to your systems Path environment variable
-          to be able to run PHP from anywhere.]
-        - To run this script from everywhere, create 'rescene.bat' in a directory that is in your PATH.
-          For example: 'C:\Windows\rescene.bat'
-          Include the following content:
-            "C:\Program Files (x86)\PHP\php.exe" "C:\Windows\rescene.php" %*
-          And place the PHP file accordingly.
-          Enter 'rescene' anywhere to use it.
+     - Download and install PHP.  http://windows.php.net/download/
+    - Run this script by entering something like
+    C:\Program Files (x86)\PHP\php.exe rescene.php
+    in the command prompt.
+    - [Add 'C:\Program Files (x86)\PHP' to your systems Path environment variable
+    to be able to run PHP from anywhere.]
+    - To run this script from everywhere, create 'rescene.bat' in a directory that is in your PATH.
+    For example: 'C:\Windows\rescene.bat'
+    Include the following content:
+    "C:\Program Files (x86)\PHP\php.exe" "C:\Windows\rescene.php" %*
+    And place the PHP file accordingly.
+    Enter 'rescene' anywhere to use it.
     */
     if (!array_key_exists(1, $argv)) {
         echo "The first parameter needs to be a .srr file.\n";
@@ -132,9 +133,9 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
     $srr = $argv[1];
 
     // to test execution time
-    $mtime = microtime(); 
-    $mtime = explode(' ',$mtime); 
-    $mtime = $mtime[1] + $mtime[0]; 
+    $mtime = microtime();
+    $mtime = explode(' ',$mtime);
+    $mtime = $mtime[1] + $mtime[0];
     $starttime = $mtime;
 
     if (array_key_exists(2, $argv)) {
@@ -187,7 +188,7 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
                     } else {
                         echo 'Something went wrong. Did you provide a correct file name with path?';
                     }
-                    break;   
+                    break;
                 case '-c': // compare
                     print_r(compareSrr($srr, $file));
                     break;
@@ -221,12 +222,12 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
             //}
 
             //process file
-        if ($result = processSrr($srr)) {
-            print_r($result);
-            echo 'success';
-        } else {
-            echo 'failure';
-        }
+            if ($result = processSrr($srr)) {
+                print_r($result);
+                echo 'success';
+            } else {
+                echo 'failure';
+            }
 
 
         }
@@ -239,11 +240,11 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
     }
 
     // end part processing time
-    $mtime = microtime(); 
-    $mtime = explode(' ',$mtime); 
-    $mtime = $mtime[1] + $mtime[0]; 
-    $endtime = $mtime; 
-    $totaltime = ($endtime - $starttime); 
+    $mtime = microtime();
+    $mtime = explode(' ',$mtime);
+    $mtime = $mtime[1] + $mtime[0];
+    $endtime = $mtime;
+    $totaltime = ($endtime - $starttime);
     echo "\nFile processed in {$totaltime} seconds";
 }
 
@@ -282,7 +283,7 @@ function processSrrData(&$srrFileData) {
 function processSrrHandle($fileHandle, $srrSize) {
     // global $BLOCKNAME;
     $fh = $fileHandle;
-    
+
     // variables to store all resulting data
     $appName = 'No SRR application name found';
     $stored_files = array();
@@ -294,11 +295,11 @@ function processSrrHandle($fileHandle, $srrSize) {
     $sfv['files'] = array();
     $warnings = array();
     $compressed = FALSE; // it's an SRR file for compressed RARs
-    
+
     // other initializations
     $read = 0; // number of bytes we have read so far
     $current_rar = NULL;
-    
+
     while($read < $srrSize) {
         $add_size = TRUE;
 
@@ -344,7 +345,7 @@ function processSrrHandle($fileHandle, $srrSize) {
                     $temp = processSfv(fread($fh, $block->addSize));
                     $sfv['comments'] = array_merge($sfv['comments'], $temp['comments']);
                     $sfv['files'] = array_merge($sfv['files'], $temp['files']);
-                } 
+                }
 
                 $block->skipBlock();
                 // calculate CRC of the stored file
@@ -352,7 +353,7 @@ function processSrrHandle($fileHandle, $srrSize) {
                 $sf['fileCrc'] = strtoupper(dechex(crc32($sdata)));
                 // $sf['fileCrc'] = dechex(crc32(fread($fh, $block->addSize)));
                 // $sf['fileCrc'] = hash('crc32b', fread($fh, $block->addSize));
-                
+
                 $stored_files[$block->fileName] = $sf;
                 // end file size counting (_should_ not be necessary for Stored File Block)
                 // -> 'ReScene Database Cleanup Script 1.0' SRRs were fixed with 'FireScene Cleanup'
@@ -373,11 +374,11 @@ function processSrrHandle($fileHandle, $srrSize) {
                 $recovery_data_removed = $block->flags & 0x1;
 
                 // the hashmap key is only the lower case file name without the path
-                // to make it possible to add the CRC data from the SFVs 
+                // to make it possible to add the CRC data from the SFVs
                 $key = strtolower(basename($block->rarName));
 
                 if (array_key_exists($key, $rar_files)) {
-                    $f = $rar_files[$key]; 
+                    $f = $rar_files[$key];
                 } else {
                     $f = array(); // array that stores the file details
                     $f['fileName'] = $block->rarName; // the path is still stored here
@@ -398,7 +399,7 @@ function processSrrHandle($fileHandle, $srrSize) {
                 $block->rarReadPackedFileHeader();
 
                 if (array_key_exists($block->fileName, $archived_files)) {
-                    $f = $archived_files[$block->fileName]; 
+                    $f = $archived_files[$block->fileName];
                 } else { // new file found in the archives
                     $f = array();
                     $f['fileName'] = $block->fileName;
@@ -421,8 +422,8 @@ function processSrrHandle($fileHandle, $srrSize) {
                 if (is_null($recovery)) {
                     // first recovery block we see
                     $recovery = array();
-                    $recovery['fileName'] = 'Protect!'; 
-                    $recovery['fileSize'] = 0; 
+                    $recovery['fileName'] = 'Protect!';
+                    $recovery['fileSize'] = 0;
                 }
                 $recovery['fileSize'] += $block->addSize;
                 if ($recovery_data_removed) {
@@ -436,8 +437,8 @@ function processSrrHandle($fileHandle, $srrSize) {
                 if ($block->fileName === 'RR') { // Recovery Record
                     if (is_null($recovery)) {
                         $recovery = array();
-                        $recovery['fileName'] = 'Protect+'; 
-                        $recovery['fileSize'] = 0; 
+                        $recovery['fileName'] = 'Protect+';
+                        $recovery['fileSize'] = 0;
                     }
                     $recovery['fileSize'] += $block->addSize;
                     if (!$recovery_data_removed) {
@@ -479,14 +480,14 @@ function processSrrHandle($fileHandle, $srrSize) {
             }
             // store end offset of the header data of the rar volume
             $current_rar['offsetEnd'] = ftell($fh);
-            // keep the results updated 
+            // keep the results updated
             $rar_files[strtolower(basename($current_rar['fileName']))] = $current_rar;
         }
 
         // nuber of bytes we have processed
         $read = ftell($fh);
     }
-    
+
     fclose($fh); // close the file
 
     // add sfv CRCs to all the rar files we have found
@@ -502,19 +503,19 @@ function processSrrHandle($fileHandle, $srrSize) {
 
     // return all info in a multi dimensional array
     return array(
-        'srrSize' => $srrSize,
-        'appName' => $appName,
-        'storedFiles' => $stored_files,
-        'rarFiles' => $rar_files,
-        'archivedFiles' => $archived_files,
-        // Recovery Records across all archives in the SRR data
-        // the name is based on the first encountered recovery block
-        // Protect! -> old style RAR recovery (before RAR 3.0)
-        // Protect+ -> new style RAR recovery
-        'recovery' => $recovery,
-        'sfv' => $sfv, // comments and files that aren't covered by the SRR
-        'warnings' => $warnings, // when something unusual is found
-    'compressed' => $compressed,
+            'srrSize' => $srrSize,
+            'appName' => $appName,
+            'storedFiles' => $stored_files,
+            'rarFiles' => $rar_files,
+            'archivedFiles' => $archived_files,
+            // Recovery Records across all archives in the SRR data
+            // the name is based on the first encountered recovery block
+            // Protect! -> old style RAR recovery (before RAR 3.0)
+            // Protect+ -> new style RAR recovery
+            'recovery' => $recovery,
+            'sfv' => $sfv, // comments and files that aren't covered by the SRR
+            'warnings' => $warnings, // when something unusual is found
+            'compressed' => $compressed,
     );
 }
 
@@ -545,14 +546,14 @@ function getStoredFileDataHandle($fileHandle, $offset, $length) {
  */
 function getStoredFile($srrfile, $filename) {
     $srr = processSrr($srrfile);
-    
+
     foreach($srr['storedFiles'] as $key => $value) {
         if($key === $filename) {
             return getStoredFileData($srrfile, $value['fileOffset'], $value['fileSize']);
         }
     }
 
-    // // a faster approach for the fun of it: 
+    // // a faster approach for the fun of it:
     // $fh = fopen($srrfile, 'rb');
     // $sentinel = 0;
     // while ($sentinel < filesize($srrfile)) {
@@ -623,7 +624,7 @@ function storeFileCli($srr, $file, $path='') {
 /**
  * Adds a file to the saved files inside a SRR file.
  * @param string    $srr        The path of the SRR file.
- * @param string    $filePath   The path and name that will be stored.   
+ * @param string    $filePath   The path and name that will be stored.
  * @param bytes     $fdata      The bytes of the file to store in the SRR file.
  * @return TRUE when storing succeeds.
  */
@@ -634,7 +635,7 @@ function storeFile($srr, $filePath, $fdata) {
     if (fileNameCheck($filePath)) {
         return FALSE;
     }
-    // TODO: it is possible that you only have a path/ 
+    // TODO: it is possible that you only have a path/
 
     // don't let the same file get added twice
     $result = processSrr($srr);
@@ -716,7 +717,7 @@ function calculateHash($srr, $rarFiles, $algorithm='sha1') {
     uasort($rarFiles, 'rarFileCmp'); // sort on filename without path, case insensitive
     // compared with pyReScene when capitals are used: same behavior
     // Parlamentet.S06E02.SWEDiSH-SQC
-    $hashContext = hash_init($algorithm); 
+    $hashContext = hash_init($algorithm);
 
     // calculate hash only on the RAR metadata
     foreach ($rarFiles as $key => $value) {
@@ -740,7 +741,7 @@ function calculateHashHandle($srrHandle, $rarFiles, $algorithm='sha1') {
     // do the calculation only on the sorted RAR volumes
     // this way it still yields the same result if the order of creation differs
     asort($rarFiles); // Sort an array and maintain index association
-    $hashContext = hash_init($algorithm); 
+    $hashContext = hash_init($algorithm);
 
     // calculate hash only on the RAR metadata
     foreach ($rarFiles as $key => $value) {
@@ -757,7 +758,7 @@ function calculateHashString($srrData, $rarFiles, $algorithm='sha1') {
     // do the calculation only on the sorted RAR volumes
     // this way it still yields the same result if the order of creation differs
     asort($rarFiles);
-    $hashContext = hash_init($algorithm); 
+    $hashContext = hash_init($algorithm);
 
     // calculate hash only on the RAR metadata
     foreach ($rarFiles as $key => $value) {
@@ -817,7 +818,7 @@ function compareSrrRaw($rone, $rtwo, $one, $two) {
         // must be picked in the comparison as the other one doesn't have it
         $uniqueRarOne = array_values(array_diff_key($hashesOne, $hashesTwo));
         $uniqueRarTwo = array_values(array_diff_key($hashesTwo, $hashesOne));
-        
+
         // of the ones that are the same, the best name should be picked by default
         $twiceHash = array_keys(array_intersect_key($left, $right));
         $namesRarOne = array();
@@ -879,7 +880,7 @@ function compareSrrRaw($rone, $rtwo, $one, $two) {
                 } else {
                     $best = 1;
                 }
-                array_push($sameName, array($okey, $tkey, 'best' => $best, 
+                array_push($sameName, array($okey, $tkey, 'best' => $best,
                 'lines1' => $ovalue['lines'], 'lines2' => $tvalue['lines']));
                 $toUnset = TRUE;
                 // TODO: show text diff?
@@ -903,7 +904,7 @@ function compareSrrRaw($rone, $rtwo, $one, $two) {
 
     foreach ($oneSfv as $okey => $ovalue) {
         foreach ($twoSfv as $tkey => $tvalue) {
-        $toUnset = FALSE;
+            $toUnset = FALSE;
             if ($ovalue['files'] === $tvalue['files']) {
                 // suggest the SFV file with the most comments
                 if (count($ovalue['comments']) > count($tvalue['comments'])) {
@@ -940,14 +941,14 @@ function compareSrrRaw($rone, $rtwo, $one, $two) {
     $oneSrs = addSrsInfo($oneSrs, $one);
     $twoSrs = addSrsInfo($twoSrs, $two);
 
-    //print_r($oneSrs); 
-    //print_r($twoSrs); 
+    //print_r($oneSrs);
+    //print_r($twoSrs);
     foreach ($oneSrs as $okey => $ovalue) {
         foreach ($twoSrs as $tkey => $tvalue) {
             $toUnset = FALSE;
             // sample name and crc32 must be the same to be the same sample
             if ($ovalue['fileData']->name === $tvalue['fileData']->name &&
-                $ovalue['fileData']->crc32 === $tvalue['fileData']->crc32) {
+                    $ovalue['fileData']->crc32 === $tvalue['fileData']->crc32) {
                 // checked agains main AVI/MKV file
                 if ($ovalue['trackData'][1]->matchOffset === $tvalue['trackData'][1]->matchOffset) {
                     // equal enough
@@ -978,7 +979,7 @@ function compareSrrRaw($rone, $rtwo, $one, $two) {
             }
         }
     }
-    
+
     // *** OTHER ***
     foreach ($filesOne as $okey => $ovalue) {
         foreach ($filesTwo as $tkey => $tvalue) {
@@ -987,7 +988,7 @@ function compareSrrRaw($rone, $rtwo, $one, $two) {
             if ($ovalue['fileCrc'] === $tvalue['fileCrc']) {
                 array_push($same, array($okey, $tkey));
                 $toUnset = TRUE;
-            // they only have the same name
+                // they only have the same name
             } elseif ($ovalue['fileName'] === $tvalue['fileName']) {
                 array_push($sameName, array($okey, $tkey));
                 $toUnset = TRUE;
@@ -1000,21 +1001,21 @@ function compareSrrRaw($rone, $rtwo, $one, $two) {
     }
 
     $result = array(
-        'sameRarData' => $sameRarData,
-        'sameRarNames' => $sameRarNames,
-        
-        'same' => $same,
-        'sameName' => $sameName,
-        'uniqueOne' => array_keys($uniqueOne),
-        'uniqueTwo' => array_keys($uniqueTwo),
+            'sameRarData' => $sameRarData,
+            'sameRarNames' => $sameRarNames,
+
+            'same' => $same,
+            'sameName' => $sameName,
+            'uniqueOne' => array_keys($uniqueOne),
+            'uniqueTwo' => array_keys($uniqueTwo),
     );
     if (!$sameRarNames) {
         // these 4 lists cover all unique RAR metadata
         $result = array_merge($result, array(
-            'uniqueRarOne' => $uniqueRarOne, // RAR files that are new
-            'uniqueRarTwo' => $uniqueRarTwo,
-            'namesRarOne' => $namesRarOne, // the RAR names that are better (when content is the same)
-            'namesRarTwo' => $namesRarTwo, // these should be picked by default when mergeing
+                'uniqueRarOne' => $uniqueRarOne, // RAR files that are new
+                'uniqueRarTwo' => $uniqueRarTwo,
+                'namesRarOne' => $namesRarOne, // the RAR names that are better (when content is the same)
+                'namesRarTwo' => $namesRarTwo, // these should be picked by default when mergeing
         ));
     }
     return $result;
@@ -1059,7 +1060,7 @@ function addSrsInfo($list, $srrFile) {
         $list[$key] += $result;
     }
     return $list;
-} 
+}
 
 function nfoHash($nfoData) {
     // ignore all new lines
@@ -1105,6 +1106,9 @@ function processSrsHandle($fileHandle, $srsSize) {
             break;
         case FileType::MP4:
             $result = parse_srs_mp4($fileHandle, $srsSize);
+            break;
+        case FileType::WMV:
+            $result = parse_srs_wmv($fileHandle, $srsSize);
             break;
         default:
             echo 'SRS file type not detected';
@@ -1184,7 +1188,7 @@ function hashParts($srr, $rarFiles) {
 }
 
 /**
- * Construct the header of a SRR stored file block. 
+ * Construct the header of a SRR stored file block.
  * @param string $name The path (including file name) of the file to store.
  * @param int $fileSize The size of the stored file.
  */
@@ -1247,7 +1251,7 @@ function processSfv($data) {
                 $result['files'][$fileName] = substr($line, $spaceIndex + 1, 8);
             }
         }
-    }    
+    }
 
     // print_r($result);
     return $result;
@@ -1294,7 +1298,7 @@ class Block {
         $this->headerCrc = $array['headerCrc'];
         $this->blockType = $array['blockType'];
         $this->flags = $array['flags'];
-        $this->hsize = $array['headerSize']; 
+        $this->hsize = $array['headerSize'];
         $this->addSize = 0; // size of data after the header
 
         // check if block contains additional data
@@ -1322,14 +1326,14 @@ class Block {
         $crc = crc32($crcData) & 0xffff;
         // igonore blocks with no CRC set (same as twice the blockType)
         if ($crc !== $this->headerCrc && $this->headerCrc !== 0x6969 // SRR Header
-                                      && $this->headerCrc !== 0x6a6a // SRR Stored File
-                                      && $this->headerCrc !== 0x7171 // SRR RAR block
-                                      && $this->blockType !== 0x72 // RAR marker block (fixed: magic number)
+                && $this->headerCrc !== 0x6a6a // SRR Stored File
+                && $this->headerCrc !== 0x7171 // SRR RAR block
+                && $this->blockType !== 0x72 // RAR marker block (fixed: magic number)
         ) {
-        // it can not fail here for releases such as Haven.S02E05.HDTV.XviD-P0W4
+            // it can not fail here for releases such as Haven.S02E05.HDTV.XviD-P0W4
             global $BLOCKNAME;
-        array_push($warnings, 'ERROR: Invalid block header CRC found: header is corrupt. (' . 
-            $BLOCKNAME[$this->blockType] . ', ' . $offset . ')');
+            array_push($warnings, 'ERROR: Invalid block header CRC found: header is corrupt. (' .
+                    $BLOCKNAME[$this->blockType] . ', ' . $offset . ')');
         }
         // set offset back to where we started from
         fseek($this->fh, $offset, SEEK_SET);
@@ -1348,7 +1352,7 @@ class Block {
             return ""; // there isn't an application name stored
         }
     }
-    
+
     /**
      * Reads the additional fields for a SRR Stored File Block.
      */
@@ -1385,7 +1389,7 @@ class Block {
      */
     function rarReadPackedFileHeader() {
         $array = unpack('Vus/Cos/VfileCrc/VfileTime/CunpackVersion/Cmethod/vnameSize/Vattr',
-                        fread($this->fh, 21));
+                fread($this->fh, 21));
         // $this->packSize = $this->addSize
         // $this->unpackedSize = $array['us'];
         $this->fileSize = $array['us'];
@@ -1405,7 +1409,7 @@ class Block {
             $highhex = dechex($high['highUnpackSize']);
             $this->fileSize = hexdec($highhex . $lowhex);
         }
-        
+
         // only grab the ascii representation of the name
         $fname = explode('\0', fread($this->fh, $array['nameSize']), 1);
         $this->fileName = $fname[0];
@@ -1413,7 +1417,7 @@ class Block {
         // salt and extra time fields are here and not interesting
         $this->skipHeader();
     }
-    
+
     /**
      * Set the file handle cursor at the end of the header.
      * Data that follows can be a next block or a stored file.
@@ -1422,7 +1426,7 @@ class Block {
         // skip whole header of the block
         fseek($this->fh, $this->startOffset + $this->hsize, SEEK_SET);
     }
-    
+
     /**
      * Sets file cursor to the next block based on the values in the header!
      */
@@ -1436,16 +1440,19 @@ function detectFileFormat($fileHandle) {
     $firstBytes = strtoupper(bin2hex(fread($fileHandle, 4)));
 
     switch($firstBytes) {
-        case '1A45DFA3': 
-        $ft = FileType::MKV;
-        break;
-    case '52494646': // RIFF
-        $ft = FileType::AVI;
-        break;
-    default:
-        if ('66747970' ===  bin2hex(fread($fileHandle, 4))) {
-            $ft = FileType::MP4;
-        }
+        case '1A45DFA3':
+            $ft = FileType::MKV;
+            break;
+        case '52494646': // RIFF
+            $ft = FileType::AVI;
+            break;
+        case '3026B275':
+            $ft =  FileType::WMV;
+            break;
+        default:
+            if ('66747970' ===  bin2hex(fread($fileHandle, 4))) {
+                $ft = FileType::MP4;
+            }
     }
     rewind($fileHandle);
     return $ft;
@@ -1456,7 +1463,7 @@ function parse_srs_avi($fh, $srsSize) {
     $result['trackData'] = array();
 
     $rr = new RiffReader($fh, $srsSize);
-    $done = false;
+    $done = FALSE;
     while (!$done && $rr->read()) {
         if ($rr->chunkType == 'LIST') {
             $rr->moveToChild();
@@ -1469,7 +1476,7 @@ function parse_srs_avi($fh, $srsSize) {
                 $track = new TrackData($data);
                 $result['trackData'][$track->trackNumber] = $track;
             } elseif ($rr->chunkType == 'MOVI') {
-                $done = true;
+                $done = TRUE;
                 break;
             } else {
                 $rr->skipContents();
@@ -1495,7 +1502,7 @@ function parse_srs_mkv($fh, $srsSize) {
     $result['trackData'] = array();
 
     $er = new EbmlReader($fh, $srsSize);
-    $done = false;
+    $done = FALSE;
     while(!$done && $er->read()) {
         if ($er->etype == EbmlType::Segment || $er->etype == EbmlType::ReSample) {
             $er->moveToChild();
@@ -1508,7 +1515,7 @@ function parse_srs_mkv($fh, $srsSize) {
             $result['trackData'][$track->trackNumber] = $track;
         } elseif ($er->etype == EbmlType::Cluster || $er->etype == EbmlType::AttachmentList) {
             $er->skipContents();
-            $done = true;
+            $done = TRUE;
         } else {
             $er->skipContents();
         }
@@ -1518,6 +1525,30 @@ function parse_srs_mkv($fh, $srsSize) {
 
 function parse_srs_mp4($fh, $srsSize) {
     $result = array();
+    $result['trackData'] = array();
+
+    $mr = new MovReader($fh, $srsSize);
+    while($mr->read()) {
+        if ($mr->atomType == 'SRSF') {
+            $data = $mr->readContents();
+            $result['fileData'] = new FileData($data);
+        } elseif ($mr->atomType == 'SRST') {
+            $data = $mr->readContents();
+            $track = new TrackData($data);
+            $result['trackData'][$track->trackNumber] = $track;
+        } elseif ($mr->atomType == 'mdat') {
+            $mr->moveToChild();
+        } else {
+            $mr->skipContents();
+        }
+    }
+    return $result;
+}
+
+function parse_srs_wmv($fh, $srsSize) {
+    $result = array();
+    $result['trackData'] = array();
+
 }
 
 class FileData {
@@ -1540,27 +1571,33 @@ class FileData {
 
 class TrackData {
     public function __construct($data) {
-        $u = unpack('vflags/vtrackNumber', substr($data, 0, 4));
+        $u = unpack('vflags', substr($data, 0, 2));
         $this->flags = $u['flags'];
+
+        // MP4 files can have larger track numbers
+        if ($this->flags & 0x8) { // big track number
+            // 4 bytes
+            $u = unpack('VtrackNumber', substr($data, 2, 6));
+            $extra = 2;
+        } else {
+            // 2 bytes
+            $u = unpack('vtrackNumber', substr($data, 2, 4));
+            $extra = 0;
+        }
         $this->trackNumber = $u['trackNumber'];
-        //TODO: mp4 support
-        
-        
-        
-        
-        
+
         if ($this->flags & 0x4) { // big file
-            $w = unpack('Vlow/Vhigh', substr($data, 4, 8));
+            $w = unpack('Vlow/Vhigh', substr($data, 4 + $extra, 8));
             $lowhex = str_pad(dechex($w['low']), 8, '0', STR_PAD_LEFT);
             $highhex = dechex($w['high']);
             $this->dataSize = hexdec($highhex . $lowhex);
             $add = 8;
         } else {
-            $w = unpack('Vsize', substr($data, 4, 4));
+            $w = unpack('Vsize', substr($data, 4 + $extra, 4));
             $this->dataSize = $w['size'];
             $add = 4;
         }
-        $w = unpack('Vlow/Vhigh', substr($data, 4 + $add, 8));
+        $w = unpack('Vlow/Vhigh', substr($data, 4 + $extra + $add, 8));
         $lowhex = str_pad(dechex($w['low']), 8, '0', STR_PAD_LEFT);
         $highhex = dechex($w['high']);
         // location where the track is located in the main file (often zero)
@@ -1573,26 +1610,26 @@ class RiffReader {
     public function __construct($fileHandle, $srsSize) {
         $this->fh = $fileHandle;
         $this->fileSize = $srsSize;
-        $this->readDone = true;
+        $this->readDone = TRUE;
 
         $this->chunkType = null;
-        $this->hasPadding = false;
+        $this->hasPadding = FALSE;
         $this->chunkLength = 0;
         $this->fourcc = '';
     }
 
     public function read() {
         $chunkStartPosition = ftell($this->fh);
-        $this->readDone = false;
+        $this->readDone = FALSE;
 
         if ($chunkStartPosition + 8 > $this->fileSize) {
-            return false;
+            return FALSE;
         }
 
         $header = fread($this->fh, 8);
         $this->fourcc = substr($header, 0, 4);
         $this->chunkLength = unpack('Vlength', substr($header, 4, 4));
-        $this->chunkLength = $this->chunkLength['length']; 
+        $this->chunkLength = $this->chunkLength['length'];
 
         if ($this->fourcc == 'RIFF' || $this->fourcc == 'LIST') {
             fseek($this->fh, 4, SEEK_CUR);
@@ -1601,14 +1638,14 @@ class RiffReader {
             $this->chunkType = 'LIST';
         } else {
             if (ctype_digit(substr($header, 0, 2))) {
-            $this->chunkType = 'MOVI';
+                $this->chunkType = 'MOVI';
             } else {
-            $this->chunkType = '    ';
+                $this->chunkType = '    ';
             }
         }
         $this->hasPadding = $this->chunkLength % 2 == 1;
 
-        return true;
+        return TRUE;
     }
 
     public function readContents() {
@@ -1616,7 +1653,7 @@ class RiffReader {
             fseek($this->fh, -$this->chunkLength - $this->hasPadding, SEEK_CUR);
         }
 
-        $this->readDone = true;
+        $this->readDone = TRUE;
         $buffer = null;
 
         if ($this->chunkType != 'MOVI') {
@@ -1631,7 +1668,7 @@ class RiffReader {
 
     public function skipContents() {
         if (!$this->readDone) {
-            $this->readDone = true;
+            $this->readDone = TRUE;
 
             if ($this->chunkType != 'MOVI') {
                 fseek($this->fh, $this->chunkLength, SEEK_CUR);
@@ -1644,7 +1681,7 @@ class RiffReader {
     }
 
     public function moveToChild() {
-        $this->readDone = true;
+        $this->readDone = TRUE;
     }
 }
 
@@ -1652,7 +1689,7 @@ class EbmlReader {
     public function __construct($fileHandle, $srsSize) {
         $this->fh = $fileHandle;
         $this->fileSize = $srsSize;
-        $this->readDone = true;
+        $this->readDone = TRUE;
 
         $this->etype = null;
         $this->elementLength = 0;
@@ -1660,20 +1697,20 @@ class EbmlReader {
 
     private function String2Hex($string){
         $hex='';
-            for ($i=0; $i < strlen($string); $i++){
-                $hex .= str_pad(dechex(ord($string[$i])), 2,  '0', STR_PAD_LEFT);
-            }
+        for ($i=0; $i < strlen($string); $i++){
+            $hex .= str_pad(dechex(ord($string[$i])), 2,  '0', STR_PAD_LEFT);
+        }
         return $hex;
     }
-    
+
     public function read() {
-        assert ($this->readDone == true || $this->etype == EbmlType::Block);
+        assert($this->readDone == TRUE || $this->etype == EbmlType::Block);
         // too little data
         if (ftell($this->fh) + 2 > $this->fileSize) {
-            return false;
+            return FALSE;
         }
 
-        $this->readDone = false;
+        $this->readDone = FALSE;
 
         // element ID
         $readByte = ord(fread($this->fh, 1));
@@ -1726,7 +1763,7 @@ class EbmlReader {
 
         $this->elementLength = $this->getEbmlUInt($elementHeader, $idLengthDescriptor, $dataLengthDescriptor);
 
-        return true;
+        return TRUE;
     }
 
     private function getUIntLength($lengthDescriptor) {
@@ -1753,7 +1790,7 @@ class EbmlReader {
             fseek($this->fh, -$this->elementLength, SEEK_CUR);
         }
 
-        $this->readDone = true;
+        $this->readDone = TRUE;
         $buffer = null;
 
         // skip over removed ebml elements
@@ -1765,7 +1802,7 @@ class EbmlReader {
 
     public function skipContents() {
         if (!$this->readDone) {
-            $this->readDone = true;
+            $this->readDone = TRUE;
 
             if ($this->etype != EbmlType::Block) {
                 fseek($this->fh, $this->elementLength, SEEK_CUR);
@@ -1774,8 +1811,97 @@ class EbmlReader {
     }
 
     public function moveToChild() {
-        $this->readDone = true;
+        $this->readDone = TRUE;
     }
+}
+
+class MovReader {
+    public function __construct($fileHandle, $srsSize) {
+        $this->fh = $fileHandle;
+        $this->fileSize = $srsSize;
+        $this->readDone = TRUE;
+        $this->atomType = '';
+        $this->atomLength = 0;
+        $this->atomStartPosition = 0;
+        assert(ftell($this->fh) === 0);
+    }
+
+    public function read() {
+        assert($this->readDone);
+        $atomStartPosition = ftell($this->fh);
+        $this->readDone = FALSE;
+
+        if ($atomStartPosition + 8 > $this->fileSize) {
+            return FALSE;
+        }
+        $header = fread($this->fh, 8);
+        $u = unpack('Nlength', substr($header, 0, 4));
+        $atomLength = $u['length'];
+        $this->atomType = substr($header, 4, 4);
+
+        // special sizes
+        $hsize = 8;
+        if ($atomLength === 1) {
+            // 8-byte size field after the atom type
+            $bsize = fread($this->fh, 8);
+            $w = unpack('Nhigh/Nlow', substr($bsize, 0, 8));
+            // add the high order bits before the low order bits and convert to decimal
+            $lowhex = str_pad(dechex($w['low']), 8, '0', STR_PAD_LEFT);
+            $highhex = dechex($w['high']);
+            $atomLength = hexdec($highhex . $lowhex);
+            $hsize += 8;
+        } elseif ($atomLength === 0) {
+            // FoV/COMPULSiON samples have an atom that consists of just 8 null bytes.
+            // This is the case if it is followed by an mdat
+            if ($this->atomType === "\x00\x00\x00\x00") {
+                $atomLength = 8;
+            } else {
+                // the atom extends to the end of the file
+                $atomLength = $this->fileSize - $atomStartPosition;
+            }
+        }
+        $this->headerSize = $hsize;
+        $this->atomLength = $atomLength;
+        $this->atomStartPosition = $atomStartPosition;
+	        
+		fseek($this->fh, $atomStartPosition, SEEK_SET);
+		
+		return TRUE;
+	}
+
+	public function readContents() {
+		if ($this->readDone) {
+			fseek($this->fh, $this->atomStartPosition, SEEK_SET);
+		}
+
+		$this->readDone = TRUE;
+		$buffer = null;
+
+		fseek($this->fh, $this->headerSize, SEEK_CUR);
+		
+		if ($this->atomType != 'mdat') {
+			$buffer = fread($this->fh, $this->atomLength - $this->headerSize);
+		}
+
+		return $buffer;
+	}
+
+	public function skipContents() {
+		if (!$this->readDone) {
+			$this->readDone = TRUE;
+
+			if ($this->atomType != 'mdat') {
+				fseek($this->fh, $this->atomLength, SEEK_CUR);
+			} else {
+    			fseek($this->fh, $this->headerSize, SEEK_CUR);
+			}
+		}
+	}
+
+	public function moveToChild() {
+		$this->readDone = TRUE;
+		fseek($this->fh, $this->headerSize, SEEK_CUR);
+	}
 }
 
 /* ----- end of rescene.php ----- */
