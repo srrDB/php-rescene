@@ -1,6 +1,6 @@
 <?php 
 /**
- * PHP Library to read and edit a .srr file.
+ * PHP Library to read and edit a .srr file. It reads .srs files.
  * Copyright (c) 2011-2012 pyReScene
  *
  * rescene.php is free software, you can redistribute it and/or modify
@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2012-11-24
+ * Last version: 2012-11-25
  *
  * Features:
  *  - process a SRR file which returns:
@@ -53,7 +53,7 @@
  *      - other files
  *          -> quick: by hash
  *  - Output flag added to indicate if the RARs used compression.
- *  - Support to read SRS files. (AVI/MKV)
+ *  - Support to read SRS files. (AVI/MKV/MP4/WMV)
  *
  *  - nfo compare: strip line endings + new line?
  *      Indiana.Jones.And.The.Last.Crusade.1989.PAL.DVDR-DNA
@@ -70,7 +70,6 @@
  *      => hard to do correctly (SFVs subs exist too)
  *  - how to throw errors correctly?
  *  - sorting the list of the stored files by hand
- *  - make it impossible to rename to an existing file
  *  - "Application name found in the middle of the SRR."
  *    causes hashes to be different
  *
@@ -1548,7 +1547,42 @@ function parse_srs_mp4($fh, $srsSize) {
 function parse_srs_wmv($fh, $srsSize) {
     $result = array();
     $result['trackData'] = array();
+    
+    $GUID_SRS_FILE = 'SRSFSRSFSRSFSRSF';
+    $GUID_SRS_TRACK = 'SRSTSRSTSRSTSRST';
+    $GUID_SRS_PADDING = "PADDINGBYTESDATA";
+    
+    $start_pos = strpos(fread($fh, $srsSize), $GUID_SRS_FILE);
+    fseek($fh, $start_pos);
 
+    while ($start_pos < $srsSize) {
+       $guid = fread($fh, 16);
+       $object_size = unpack('Vlow/Vhigh', fread($fh, 8));
+       // add the high order bits before the low order bits and convert to decimal
+       $lowhex = str_pad(dechex($object_size['low']), 8, '0', STR_PAD_LEFT);
+       $highhex = dechex($object_size['high']);
+       $size = hexdec($highhex . $lowhex);
+       
+       $object_data = fread($fh, $size - 24);
+       if ($guid == $GUID_SRS_FILE) {
+           $result['fileData'] = new FileData($object_data);
+       } elseif ($guid == $GUID_SRS_TRACK) {
+           $track = new TrackData($object_data);
+           $result['trackData'][$track->trackNumber] = $track;
+       } elseif ($guid == $GUID_SRS_PADDING) {
+           // normally the padding bytes are always zero, but not in this sample
+           // all the padding bytes are stored in this block when at least one of them isn't zero
+           $result['paddingSize'] = $size - 24;
+       } else {
+           // all interesting objects are grouped together
+           // nothing interesting follows
+           break;
+       }
+        
+       $start_pos = ftell($fh);
+    }
+
+    return $result;
 }
 
 class FileData {
