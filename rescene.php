@@ -1898,45 +1898,45 @@ class MovReader {
         $this->headerSize = $hsize;
         $this->atomLength = $atomLength;
         $this->atomStartPosition = $atomStartPosition;
-	        
-		fseek($this->fh, $atomStartPosition, SEEK_SET);
-		
-		return TRUE;
-	}
+            
+        fseek($this->fh, $atomStartPosition, SEEK_SET);
+        
+        return TRUE;
+    }
 
-	public function readContents() {
-		if ($this->readDone) {
-			fseek($this->fh, $this->atomStartPosition, SEEK_SET);
-		}
+    public function readContents() {
+        if ($this->readDone) {
+            fseek($this->fh, $this->atomStartPosition, SEEK_SET);
+        }
 
-		$this->readDone = TRUE;
-		$buffer = null;
+        $this->readDone = TRUE;
+        $buffer = null;
 
-		fseek($this->fh, $this->headerSize, SEEK_CUR);
-		
-		if ($this->atomType != 'mdat') {
-			$buffer = fread($this->fh, $this->atomLength - $this->headerSize);
-		}
+        fseek($this->fh, $this->headerSize, SEEK_CUR);
+        
+        if ($this->atomType != 'mdat') {
+            $buffer = fread($this->fh, $this->atomLength - $this->headerSize);
+        }
 
-		return $buffer;
-	}
+        return $buffer;
+    }
 
-	public function skipContents() {
-		if (!$this->readDone) {
-			$this->readDone = TRUE;
+    public function skipContents() {
+        if (!$this->readDone) {
+            $this->readDone = TRUE;
 
-			if ($this->atomType != 'mdat') {
-				fseek($this->fh, $this->atomLength, SEEK_CUR);
-			} else {
-    			fseek($this->fh, $this->headerSize, SEEK_CUR);
-			}
-		}
-	}
+            if ($this->atomType != 'mdat') {
+                fseek($this->fh, $this->atomLength, SEEK_CUR);
+            } else {
+                fseek($this->fh, $this->headerSize, SEEK_CUR);
+            }
+        }
+    }
 
-	public function moveToChild() {
-		$this->readDone = TRUE;
-		fseek($this->fh, $this->headerSize, SEEK_CUR);
-	}
+    public function moveToChild() {
+        $this->readDone = TRUE;
+        fseek($this->fh, $this->headerSize, SEEK_CUR);
+    }
 }
 
 /* ----- end of rescene.php ----- */
