@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2012-11-25
+ * Last version: 2012-12-14
  *
  * Features:
  *  - process a SRR file which returns:
@@ -52,8 +52,10 @@
  *          -> see what is missing
  *      - other files
  *          -> quick: by hash
+ *  - compare SRS files
  *  - Output flag added to indicate if the RARs used compression.
  *  - Support to read SRS files. (AVI/MKV/MP4/WMV)
+ *  - Sort stored files inside the SRR.
  *
  *  - nfo compare: strip line endings + new line?
  *      Indiana.Jones.And.The.Last.Crusade.1989.PAL.DVDR-DNA
@@ -61,7 +63,6 @@
  * List of possible features/todo list:
  *  - process in memory SRR 'file' + other API functions (very low priority)
  *      => can be done using temp files in memory
- *  - compare SRS files
  *  - refactor compare SRR
  *  - merge SRRs (Python script exists)
  *  - encryption sanity check
@@ -227,8 +228,14 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
             } else {
                 echo 'failure';
             }
-
-
+            
+//             $sf = array_keys($result['storedFiles']);
+//             sort($sf);
+//             if (sortStoredFiles($srr, $sf)) {
+//                 echo 'success';
+//             } else {
+//                 echo 'failure';
+//             }
         }
     } else {
         $result = processSrr($srr);
@@ -948,7 +955,7 @@ function compareSrrRaw($rone, $rtwo, $one, $two) {
             // sample name and crc32 must be the same to be the same sample
             if ($ovalue['fileData']->name === $tvalue['fileData']->name &&
                     $ovalue['fileData']->crc32 === $tvalue['fileData']->crc32) {
-                // checked agains main AVI/MKV file
+                // checked against main movie file
                 if ($ovalue['trackData'][1]->matchOffset === $tvalue['trackData'][1]->matchOffset) {
                     // equal enough
                     array_push($same, array($okey, $tkey));
@@ -1095,6 +1102,12 @@ function processSrsData($srsFileData) {
     return processSrsHandle($fp, $fileAttributes['size']);
 }
 
+/**
+ * Parses an SRS file.
+ * @param $fileHandle
+ * @param int $srsSize
+ * @return info array
+ */
 function processSrsHandle($fileHandle, $srsSize) {
     switch(detectFileFormat($fileHandle)) {
         case FileType::AVI:
@@ -1117,23 +1130,56 @@ function processSrsHandle($fileHandle, $srsSize) {
 }
 
 /**
- * Returns the list of stored files in a sorted way.
- * Directories first, then the files.
- * @param $storedFiles result from processSrr().
+ * Sorts the stored files in $srr according to $sortedFileNameList.
+ * @param string $srr: path to the SRR file
+ * @param array $sortedFileNameList: simple array with file names
+ * @return bool success status
  */
-function sortStoredFiles($storedFiles) {
-    //TODO: nfo at the top
-    // the keys are the unique file name
-    $all = array_keys($storedFiles);
-
-    // folders on top, files under that
-    $dirs = array_filter($all, "isFolder");
-    $files = array_diff($all, $dirs);
-
-    sort($dirs);
-    sort($files);
-
-    return array_merge($dirs, $files);
+function sortStoredFiles($srr, $sortedFileNameList) {
+    $srrInfo = processSrr($srr);
+    if (count($srrInfo['storedFiles']) != count($sortedFileNameList)) {
+        // not the same amount of elements: bad input
+        return FALSE;
+    }
+    
+    $before = $srrInfo['srrSize'];
+    $after = 0;
+    // check if each name is the same in both lists
+    foreach ($srrInfo['storedFiles'] as $key => $value) {
+        if (array_search($key, $sortedFileNameList) === FALSE) {
+            return FALSE;
+        }
+        
+        // offsets where the stored files start and end
+        if ($value['blockOffset'] < $before) {
+            $before = $value['blockOffset'];
+        }
+        $offset = $value['fileOffset'] + $value['fileSize'];
+        if ($offset > $after) {
+            $after = $offset;
+        }
+    }
+    
+    $fh = fopen($srr, 'rb');
+    $beforeData = fread($fh, $before);
+    fseek($fh, $after, SEEK_SET);
+    $afterData = fread($fh, $srrInfo['srrSize']); // srrSize: the (max) amount to read
+    
+    // sort the files and grab their blocks
+    $between = ''; 
+    foreach ($sortedFileNameList as $key) {
+        $bo = $srrInfo['storedFiles'][$key]['blockOffset'];
+        $fo = $srrInfo['storedFiles'][$key]['fileOffset'];
+        $fs = $srrInfo['storedFiles'][$key]['fileSize'];
+        $blockSize = ($fo + $fs) - $bo;
+        fseek($fh, $bo, SEEK_SET);
+        $between .= fread($fh, $blockSize);
+    }
+    fclose($fh);
+    $amount = file_put_contents($srr, $beforeData . $between . $afterData, LOCK_EX);
+    assert($amount === $srrInfo['srrSize']);
+    
+    return TRUE;
 }
 
 // Private helper functions -------------------------------------------------------------------------------------------
@@ -1848,7 +1894,6 @@ class EbmlReader {
         $this->readDone = TRUE;
     }
 }
-
 
 class MovReader {
     public function __construct($fileHandle, $srsSize) {
