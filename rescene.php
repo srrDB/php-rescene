@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2012-12-14
+ * Last version: 2013-01-05
  *
  * Features:
  *  - process a SRR file which returns:
