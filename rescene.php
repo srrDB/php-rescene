@@ -261,10 +261,8 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
  */
 function processSrr($file) {
     $fh = fopen($file, 'rb');
-    // PHP uses cacheing for filesize() and we do not always want that!
-    $stat = fstat($fh);
     // file handle gets closed afterwards
-    return processSrrHandle($fh, $stat['size']);
+    return processSrrHandle($fh, getFileSize($file));
 }
 
 /**
@@ -658,7 +656,7 @@ function storeFile($srr, $filePath, $fdata) {
 
     $fh = fopen($srr, 'rb');
     $before = fread($fh, $offset);
-    $after = fread($fh, filesize($srr));
+    $after = fread($fh, getFileSize($srr));
     fclose($fh);
 
     $header = createStoredFileHeader($filePath, strlen($fdata));
@@ -1183,6 +1181,14 @@ function sortStoredFiles($srr, $sortedFileNameList) {
 }
 
 // Private helper functions -------------------------------------------------------------------------------------------
+
+function getFileSize($file) {
+    $fh = fopen($file, 'rb');
+    // PHP uses caching for filesize() and we do not always want that!
+    $stat = fstat($fh);
+    fclose($fh);
+    return $stat['size'];
+}
 
 function isFolder($dir) {
     return (strpos($dir, '/', 1) !== FALSE);
