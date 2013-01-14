@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2013-01-05
+ * Last version: 2013-01-14
  *
  * Features:
  *  - process a SRR file which returns:
@@ -1200,9 +1200,10 @@ function isFolder($dir) {
  * No // (double forward slashes).
  * The string cannot start with a /.
  * The string must contain at least one character.
+ * The string cannot start or end with a space.
  */
 function fileNameCheck($path) {
-    return preg_match('/([\\\\:*?"<>|]|\/\/)|^\/|^$/', $path);
+    return preg_match('/([\\\\:*?"<>|]|\/\/)|^\/|^$|^ .*|^.* $/', $path);
 }
 
 function fileNameCheckTest() {
@@ -1219,7 +1220,9 @@ function fileNameCheckTest() {
             fileNameCheck('dir\\\\file.ext') &&
             fileNameCheck('/dir/file.ext') &&
             fileNameCheck('') &&
-            fileNameCheck('dir\\file.ext'));
+            fileNameCheck('dir\\file.ext') &&
+            fileNameCheck(' dir/file.ext') &&
+            fileNameCheck('dir/file.ext '));
 }
 
 /**
