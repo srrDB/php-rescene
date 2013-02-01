@@ -1,7 +1,7 @@
 <?php 
 /**
  * PHP Library to read and edit a .srr file. It reads .srs files.
- * Copyright (c) 2011-2012 pyReScene
+ * Copyright (c) 2011-2013 Gfy
  *
  * rescene.php is free software, you can redistribute it and/or modify
  * it under the terms of GNU Affero General Public License
@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2013-01-14
+ * Last version: 2013-02-01
  *
  * Features:
  *  - process a SRR file which returns:
@@ -56,6 +56,7 @@
  *  - Output flag added to indicate if the RARs used compression.
  *  - Support to read SRS files. (AVI/MKV/MP4/WMV)
  *  - Sort stored files inside the SRR.
+ *  - OpenSubtitles.org hash support.
  *
  *  - nfo compare: strip line endings + new line?
  *      Indiana.Jones.And.The.Last.Crusade.1989.PAL.DVDR-DNA
@@ -80,6 +81,7 @@
 $BLOCKNAME = array(
 0x69 => 'SRR VolumeHeader',
 0x6A => 'SRR Stored File',
+0x6B => 'SRR OSO Hash',
 0x71 => 'SRR RAR subblock',
 0x72 => 'RAR Marker',
 0x73 => 'Archive Header',
@@ -236,6 +238,7 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
 //             } else {
 //                 echo 'failure';
 //             }
+
         }
     } else {
         $result = processSrr($srr);
@@ -293,6 +296,7 @@ function processSrrHandle($fileHandle, $srrSize) {
     $stored_files = array();
     $rar_files = array();
     $archived_files = array();
+    $oso_hashes = array();
     $recovery = NULL;
     $sfv = array();
     $sfv['comments'] = array();
@@ -320,6 +324,21 @@ function processSrrHandle($fileHandle, $srrSize) {
                     array_push($warnings, 'Application name found in the middle of the SRR.');
                 }
                 $appName = $block->readSrrAppName();
+                break;
+            case 0x6B: // SRR OSO Hash (blocks at the end of the file)
+                  $block->srrOsoHashFileHeader();
+                $entry = array();
+                $entry['fileName'] = $block->fileName;
+                $entry['osoHash'] = $block->osoHash;
+                $entry['fileSize'] = $block->fileSize;
+                $entry['blockOffset'] = $block->startOffset;
+                $entry['blockSize'] = $block->hsize;
+                $entry['data'] = $block->data;
+                array_push($oso_hashes, $entry);
+                
+                if (!is_null($current_rar)) {
+                    $current_rar = NULL; // SRR block detected: start again
+                }
                 break;
             case 0x6A: // SRR Stored File Block
                 $block->srrReadStoredFileHeader();
@@ -512,6 +531,7 @@ function processSrrHandle($fileHandle, $srrSize) {
             'storedFiles' => $stored_files,
             'rarFiles' => $rar_files,
             'archivedFiles' => $archived_files,
+            'osoHashes' => $oso_hashes,
             // Recovery Records across all archives in the SRR data
             // the name is based on the first encountered recovery block
             // Protect! -> old style RAR recovery (before RAR 3.0)
@@ -663,6 +683,80 @@ function storeFile($srr, $filePath, $fdata) {
     file_put_contents($srr, $before . $header . $fdata . $after, LOCK_EX);
     return TRUE;
 }
+
+function addOsoHash($srr, $oso_hash_data) {
+    // the hash must not already exist
+    $result = processSrr($srr);
+    foreach($result['osoHashes'] as $value) {
+        if ($value['data'] == $oso_hash_data) {
+            return FALSE;
+        }
+    }
+    
+    $orig_data = file_get_contents($srr);
+    file_put_contents($srr, $orig_data . $oso_hash_data, LOCK_EX);
+}
+
+// /**
+//  * Adds a new OSO hash to the end of the SRR file.
+//  * 
+//  * @param string $srr
+//  * @param int $fileSize
+//  * @param string $osoHash
+//  * @param string $fileName
+//  */
+// function addOsoHash($srr, $fileSize, $osoHash, $fileName) {
+//     // check for illegal windows characters; no paths
+//     if (fileNameCheck($fileName) || strstr($fileName, '/')) {
+//         return FALSE;
+//     }
+//     if ($fileSize < 0 || !preg_match('/[a-f0-9]{16}/i', $osoHash) || strlen($fileName) < 1) {
+//         return FALSE;
+//     }
+    
+//     // the hash must not already exist
+//     $result = processSrr($srr);
+//     foreach($result['osoHashes'] as $value) {
+//         if ($value['fileName'] == $fileName &&
+//             $value['fileSize'] == $fileSize &&
+//             $value['osoHash'] == $osoHash) {
+//             return FALSE;
+//         }
+//     }
+    
+//     $fh = fopen($srr, 'rb');
+//     $before = fread($fh, getFileSize($srr));
+//     fclose($fh);
+    
+//     // 2 byte CRC, 1 byte block type, 2 bytes for the flag 0x0000
+//     $header = pack('H*' , '6B6B6B0000');
+    
+//     $osoBlockHeader = encode_int($fileSize); // broken on 32 bit!!
+//     // OSO hash stored as little endian
+//     $reversed = '';
+//     for($i=strlen($osoHash);$i>=0;$i-=2) {
+//         $reversed .= substr($osoHash, $i, 2);
+//     }
+//     $osoBlockHeader .= pack('H*' , $reversed);
+//     $osoBlockHeader .= pack('v', strlen($fileName));
+//     $osoBlockHeader .= $fileName;
+//     $headerSize = pack('v', 5 + 2 + 8 + 8 + 2 + strlen($fileName));
+
+//     print_r(unpack('H*', $header . $headerSize . $osoBlockHeader));
+//     //file_put_contents($srr, $before . $header . $headerSize . $osoBlockHeader, LOCK_EX);
+//     return TRUE;
+// }
+
+// function encode_int($in, $pad_to_bits=64, $little_endian=true) {
+//     $in = decbin($in);
+//     $in = str_pad($in, $pad_to_bits, '0', STR_PAD_LEFT);
+//     $out = '';
+//     for ($i = 0, $len = strlen($in); $i < $len; $i += 8) {
+//         $out .= chr(bindec(substr($in,$i,8)));
+//     }
+//     if($little_endian) $out = strrev($out);
+//     return $out;
+// }
 
 /**
  * Renames a stored file.
@@ -1381,6 +1475,7 @@ class Block {
         // igonore blocks with no CRC set (same as twice the blockType)
         if ($crc !== $this->headerCrc && $this->headerCrc !== 0x6969 // SRR Header
                 && $this->headerCrc !== 0x6a6a // SRR Stored File
+                && $this->headerCrc !== 0x6b6b // SRR OSO Hash
                 && $this->headerCrc !== 0x7171 // SRR RAR block
                 && $this->blockType !== 0x72 // RAR marker block (fixed: magic number)
         ) {
@@ -1422,6 +1517,33 @@ class Block {
 
         // skip possible (future) fields to start file
         $this->skipHeader();
+    }
+    
+    /**
+     * Reads the OpenSubtitles.org Hashes.
+     */
+    function srrOsoHashFileHeader() {
+        // FILE SIZE
+        $file_size = unpack('Vlow/Vhigh', fread($this->fh, 8));
+        // add the high order bits before the low order bits and convert to decimal
+        $lowhex = str_pad(dechex($file_size['low']), 8, '0', STR_PAD_LEFT);
+        $highhex = dechex($file_size['high']);
+        $this->fileSize = hexdec($highhex . $lowhex);
+        
+        // OSO HASH
+        $oso_hash = unpack('Vlow/Vhigh', fread($this->fh, 8));
+        // add the high order bits before the low order bits and convert to decimal
+        $lowhex = str_pad(dechex($oso_hash['low']), 8, '0', STR_PAD_LEFT);
+        $highhex = dechex($oso_hash['high']);
+        $this->osoHash = $highhex . $lowhex;
+        
+        // FILE NAME
+        $array = unpack('vnameSize', fread($this->fh, 2));
+        $this->fileName = fread($this->fh, $array['nameSize']);
+        
+        // skip possible (future) fields
+        fseek($this->fh, $this->startOffset, SEEK_SET);
+        $this->data = fread($this->fh, $this->hsize);
     }
 
     /**
