@@ -74,6 +74,10 @@
  *  - sorting the list of the stored files by hand
  *  - "Application name found in the middle of the SRR."
  *    causes hashes to be different
+ *  - http://www.srrdb.com/release/details/Pokemon_Pearl_NDS_KOR-HMH (strange chars)
+ *  - http://www.srrdb.com/release/details/Race.To.Witch.Mountain.1080p.BluRay.x264-HD1080 (wrong file size)
+ *  - http://www.srrdb.com/release/details/NBA.2010.03.02.Pacers.Vs.Lakers.720p.HDTV.x264-BALLS (crc FFFFFFFF)
+ *  - http://www.srrdb.com/release/details/Dexter.S01E03.720p.Bluray.x264-ORPHEUS (short crc)
  *
  */
 
@@ -1776,7 +1780,7 @@ class FileData {
         $lowhex = str_pad(dechex($w['low']), 8, '0', STR_PAD_LEFT);
         $highhex = dechex($w['high']);
         $this->fileSize = hexdec($highhex . $lowhex);
-        $this->crc32 = dechex($w['crc32']);
+        $this->crc32 = str_pad(dechex($w['crc32']), 8, '0', STR_PAD_LEFT);
     }
 }
 
