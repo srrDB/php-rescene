@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2013-02-01
+ * Last version: 2013-04-24
  *
  * Features:
  *  - process a SRR file which returns:
@@ -54,7 +54,7 @@
  *          -> quick: by hash
  *  - compare SRS files
  *  - Output flag added to indicate if the RARs used compression.
- *  - Support to read SRS files. (AVI/MKV/MP4/WMV)
+ *  - Support to read SRS files. (AVI/MKV/MP4/WMV/FLAC/MP3)
  *  - Sort stored files inside the SRR.
  *  - OpenSubtitles.org hash support.
  *
@@ -104,6 +104,8 @@ class FileType {
     const AVI = 'AVI';
     const MP4 = 'MP4';
     const WMV = 'WMV';
+    const FLAC = 'FLAC';
+    const MP3 = 'MP3';
     const Unknown = '';
 }
 
@@ -167,7 +169,7 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
                         echo 'Error while storing file.';
                     }
                     break;
-                case '-r': // remove
+                case '-r': // rename
                     if (array_key_exists(4, $argv)) {
                         $newName = $argv[4];
                         echo 'SRR file: ' . $srr . "\n";
@@ -1205,6 +1207,7 @@ function processSrsData($srsFileData) {
  * @return info array
  */
 function processSrsHandle($fileHandle, $srsSize) {
+	$result = null;
     switch(detectFileFormat($fileHandle)) {
         case FileType::AVI:
             $result = parse_srs_avi($fileHandle, $srsSize);
@@ -1218,6 +1221,12 @@ function processSrsHandle($fileHandle, $srsSize) {
         case FileType::WMV:
             $result = parse_srs_wmv($fileHandle, $srsSize);
             break;
+        case FileType::FLAC:
+        	$result = parse_srs_flac($fileHandle, $srsSize);
+        	break;
+        case FileType::MP3:
+        	$result = parse_srs_mp3($fileHandle, $srsSize);
+        	break;
         default:
             echo 'SRS file type not detected';
     }
@@ -1627,11 +1636,19 @@ function detectFileFormat($fileHandle) {
             $ft = FileType::AVI;
             break;
         case '3026B275':
-            $ft =  FileType::WMV;
+            $ft = FileType::WMV;
             break;
+        case '664C6143': // fLaC
+        	$ft = FileType::FLAC;
+            break;
+        case '53525346': // SRSF
+        	$ft = FileType::MP3;
+        	break;
         default:
             if ('66747970' ===  bin2hex(fread($fileHandle, 4))) {
                 $ft = FileType::MP4;
+            } elseif (substr($firstBytes, 0, 6) == '494433') { // ID3
+            	$ft = FileType::MP3;
             }
     }
     rewind($fileHandle);
@@ -1765,6 +1782,68 @@ function parse_srs_wmv($fh, $srsSize) {
 
     return $result;
 }
+
+function parse_srs_flac($fh, $srsSize) {
+    $result = array();
+    $result['trackData'] = array();
+    
+    $fr = new FlacReader($fh, $srsSize);
+    while($fr->read()) {
+    	if ($fr->blockType == 's') {
+    		$data = $fr->readContents();
+    		$result['fileData'] = new FileData($data);
+    	} elseif ($fr->blockType == 't') {
+    		$data = $fr->readContents();
+    		$track = new TrackData($data);
+    		$result['trackData'][$track->trackNumber] = $track;
+    	} elseif ($fr->blockType == 'u') {
+    		$result['trackData'][1] = read_fingerprint_data($result['trackData'][1], $fr->readContents());
+    	} else {
+    		$fr->skipContents();
+    	}
+    	
+    	// mandatory STREAMINFO metadata block encountered
+    	if ($fr->blockType == "\0") {
+    		break; // stop parsing FLAC file
+    	}
+    }
+    
+    return $result;
+}
+
+function read_fingerprint_data($track, $data) {
+	$lengths = unpack('Vduration/Vfplength', substr($data, 0, 8));
+	$track->duration = $lengths['duration'];
+	$track->fingerprint = substr($data, 8, $lengths['fplength']);
+	return $track;
+}
+
+function parse_srs_mp3($fh, $srsSize) {
+	$result = array();
+	$result['trackData'] = array();
+	
+	$data = fread($fh, $srsSize);
+	
+	//TODO: won't work correctly if there is the string SRSF in the ID3 tag
+	$f = strpos($data, 'SRSF');
+	$t = strpos($data, 'SRST', $f);
+	$p = strpos($data, 'SRSP', $t);
+	if ($f !== FALSE) {
+		$l = unpack('Vlength', substr($data, $f + 4, 4));
+		$result['fileData'] = new FileData(substr($data, $f + 8, $l['length'] - 8));
+	}
+	if ($t !== FALSE) {
+		$l = unpack('Vlength', substr($data, $t + 4, 4));
+		$track = new TrackData(substr($data, $t + 8, $l['length'] - 8));
+		$result['trackData'][$track->trackNumber] = $track;
+	}
+	if ($p !== FALSE) {
+		$l = unpack('Vlength', substr($data, $p + 4, 4));
+		$result['trackData'][1] = read_fingerprint_data($result['trackData'][1], substr($data, $p + 8, $l['length'] - 8));
+	}
+	
+	return $result;
+}	
 
 class FileData {
     public function __construct($data) {
@@ -2117,6 +2196,64 @@ class MovReader {
         $this->readDone = TRUE;
         fseek($this->fh, $this->headerSize, SEEK_CUR);
     }
+}
+
+class FlacReader {
+	public function __construct($fileHandle, $srsSize) {
+		$this->fh = $fileHandle;
+		$this->fileSize = $srsSize;
+		$this->readDone = TRUE;
+		$this->blockType = '';
+		$this->blockLength = 0;
+		$this->blockStartPosition = 0;
+		assert(ftell($this->fh) === 0);
+	}
+
+	public function read() {
+		assert($this->readDone);
+		
+		$this->blockStartPosition = ftell($this->fh);
+		$this->readDone = FALSE;
+		
+		if ($this->blockStartPosition == $this->fileSize) {
+			return FALSE;
+		}
+		
+		$header = fread($this->fh, 4);
+		if ($header == 'fLaC') {
+			$this->blockType = 'fLaC';
+			$this->blockLength = 0;
+			return TRUE;
+		}
+
+		/*
+		# METADATA_BLOCK_HEADER
+		# <1>    Last-metadata-block flag: '1' if this block is the last
+		#        metadata block before the audio blocks, '0' otherwise.
+		# <7>    BLOCK_TYPE
+		# <24>   Length (in bytes) of metadata to follow
+		#        (does not include the size of the METADATA_BLOCK_HEADER)
+		*/
+		$this->blockType = substr($header, 0, 1);
+		$size = unpack('Nsize', "\0" . substr($header, 1, 3));
+		$this->blockLength = $size['size'];
+
+		return TRUE;
+	}
+
+	public function readContents() {
+		assert(!$this->readDone);
+		$this->readDone = TRUE;
+		return fread($this->fh, $this->blockLength);
+	}
+
+	public function skipContents() {
+		if (!$this->readDone) {
+			$this->readDone = TRUE;
+
+			fseek($this->fh, $this->blockLength, SEEK_CUR);
+		}
+	}
 }
 
 /* ----- end of rescene.php ----- */
