@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2013-04-24
+ * Last version: 2013-05-15
  *
  * Features:
  *  - process a SRR file which returns:
@@ -78,6 +78,7 @@
  *  - http://www.srrdb.com/release/details/Race.To.Witch.Mountain.1080p.BluRay.x264-HD1080 (wrong file size)
  *  - http://www.srrdb.com/release/details/NBA.2010.03.02.Pacers.Vs.Lakers.720p.HDTV.x264-BALLS (crc FFFFFFFF)
  *  - http://www.srrdb.com/release/details/Dexter.S01E03.720p.Bluray.x264-ORPHEUS (short crc)
+ *  - http://www.srrdb.com/release/details/Alien_Ant_Farm-Smooth_Criminal-PROMO-CDS-FLAC-2001-oNePiEcE (ID3 on FLAC)
  *
  */
 
@@ -86,6 +87,7 @@ $BLOCKNAME = array(
 0x69 => 'SRR VolumeHeader',
 0x6A => 'SRR Stored File',
 0x6B => 'SRR OSO Hash',
+0x6C => 'SRR RAR Padding',
 0x71 => 'SRR RAR subblock',
 0x72 => 'RAR Marker',
 0x73 => 'Archive Header',
@@ -346,6 +348,10 @@ function processSrrHandle($fileHandle, $srrSize) {
                     $current_rar = NULL; // SRR block detected: start again
                 }
                 break;
+            case 0x6C: // SRR RAR Padding Block
+            	$current_rar['fileSize'] -= $block->hsize;
+            	$block->skipBlock();
+            	break;
             case 0x6A: // SRR Stored File Block
                 $block->srrReadStoredFileHeader();
 
@@ -1489,6 +1495,7 @@ class Block {
         if ($crc !== $this->headerCrc && $this->headerCrc !== 0x6969 // SRR Header
                 && $this->headerCrc !== 0x6a6a // SRR Stored File
                 && $this->headerCrc !== 0x6b6b // SRR OSO Hash
+                && $this->headerCrc !== 0x6c6c // SRR RAR Padding
                 && $this->headerCrc !== 0x7171 // SRR RAR block
                 && $this->blockType !== 0x72 // RAR marker block (fixed: magic number)
         ) {
