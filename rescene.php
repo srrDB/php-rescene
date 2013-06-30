@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2013-05-15
+ * Last version: 2013-06-30
  *
  * Features:
  *  - process a SRR file which returns:
@@ -79,6 +79,7 @@
  *  - http://www.srrdb.com/release/details/NBA.2010.03.02.Pacers.Vs.Lakers.720p.HDTV.x264-BALLS (crc FFFFFFFF)
  *  - http://www.srrdb.com/release/details/Dexter.S01E03.720p.Bluray.x264-ORPHEUS (short crc)
  *  - http://www.srrdb.com/release/details/Alien_Ant_Farm-Smooth_Criminal-PROMO-CDS-FLAC-2001-oNePiEcE (ID3 on FLAC)
+ *  - When renaming a file and only the capitals will be different, a file with the old name is added.
  *
  */
 
@@ -1606,9 +1607,25 @@ class Block {
             $this->fileSize = hexdec($highhex . $lowhex);
         }
 
-        // only grab the ascii representation of the name
-        $fname = explode('\0', fread($this->fh, $array['nameSize']), 1);
-        $this->fileName = $fname[0];
+        // Filename: unicode
+        if ($this->flags & 0x200) {
+        	// Split the standard filename and unicode data from the file_name field
+        	$fn = explode("\x00", fread($this->fh, $array['nameSize']));
+        
+        	// Decompress the unicode filename, encode the result as UTF-8
+        	$uc = new RarUnicodeFilename($fn[0], $fn[1]);
+        	if ($ucname = $uc->decode()) {
+        		$this->fileName = @iconv('UTF-16LE', 'UTF-8//IGNORE//TRANSLIT', $ucname);
+        
+        	// Fallback to the standard filename
+        	} else {
+        		$this->fileName = $fn[0];
+        	}
+        
+        // Filename: non-unicode
+        } else {
+        	$this->fileName = fread($this->fh, $array['nameSize']);
+        }
 
         // salt and extra time fields are here and not interesting
         $this->skipHeader();
@@ -2262,5 +2279,164 @@ class FlacReader {
 		}
 	}
 }
+
+/**
+ * RarUnicodeFilename class.
+ *
+ * This utility class handles the unicode filename decompression for RAR files. It is
+ * adapted directly from Marko Kreen's python script rarfile.py.
+ *
+ * @link https://github.com/markokr/rarfile
+ *
+ * @version 1.2
+ */
+class RarUnicodeFilename
+{
+	/**
+	 * Initializes the class instance.
+	 *
+	 * @param   string  $stdName  the standard filename
+	 * @param   string  $encData  the unicode data
+	 * @return  void
+	 */
+	public function __construct($stdName, $encData)
+	{
+		$this->stdName = $stdName;
+		$this->encData = $encData;
+	}
+
+	/**
+	 * Decompresses the unicode filename by combining the standard filename with
+	 * the additional unicode data, return value is encoded as UTF-16LE.
+	 *
+	 * @return  mixed  the unicode filename, or false on failure
+	 */
+	public function decode()
+	{
+		$highByte = $this->encByte();
+		$encDataLen = strlen($this->encData);
+		$flagBits = 0;
+
+		while ($this->encPos < $encDataLen) {
+			if ($flagBits == 0) {
+				$flags = $this->encByte();
+				$flagBits = 8;
+			}
+			$flagBits -= 2;
+
+			switch (($flags >> $flagBits) & 3) {
+				case 0:
+					$this->put($this->encByte(), 0);
+					break;
+				case 1:
+					$this->put($this->encByte(), $highByte);
+					break;
+				case 2:
+					$this->put($this->encByte(), $this->encByte());
+					break;
+				default:
+					$n = $this->encByte();
+					if ($n & 0x80) {
+						$c = $this->encByte();
+						for ($i = 0; $i < (($n & 0x7f) + 2); $i++) {
+							$lowByte = ($this->stdByte() + $c) & 0xFF;
+							$this->put($lowByte, $highByte);
+						}
+					} else {
+						for ($i = 0; $i < ($n + 2); $i++) {
+							$this->put($this->stdByte(), 0);
+						}
+					}
+			}
+		}
+
+		// Return the unicode string
+		if ($this->failed) {return false;}
+		return $this->output;
+	}
+
+	/**
+	 * The standard filename data.
+	 * @var string
+	 */
+	protected $stdName;
+
+	/**
+	 * The unicode data used for processing.
+	 * @var string
+	 */
+	protected $encData;
+
+	/**
+	 * Pointer for the standard filename data.
+	 * @var integer
+	 */
+	protected $pos = 0;
+
+	/**
+	 * Pointer for the unicode data.
+	 * @var integer
+	 */
+	protected $encPos = 0;
+
+	/**
+	 * Did the decompression fail?
+	 * @var boolean
+	 */
+	protected $failed = false;
+
+	/**
+	 * Decompressed unicode filename string.
+	 * @var string
+	 */
+	protected $output;
+
+	/**
+	 * Gets the current byte value from the unicode data and increments the
+	 * pointer if successful.
+	 *
+	 * @return  integer  encoded byte value, or 0 on fail
+	 */
+	protected function encByte()
+	{
+		if (isset($this->encData[$this->encPos])) {
+			$ret = ord($this->encData[$this->encPos]);
+		} else {
+			$this->failed = true;
+			$ret = 0;
+		}
+		$this->encPos++;
+		return $ret;
+	}
+
+	/**
+	 * Gets the current byte value from the standard filename data.
+	 *
+	 * @return  integer  standard byte value, or placeholder on fail
+	 */
+	protected function stdByte()
+	{
+		if (isset($this->stdName[$this->pos])) {
+			return ord($this->stdName[$this->pos]);
+		}
+		$this->failed = true;
+		return ord('?');
+	}
+
+	/**
+	 * Builds the output for the unicode filename string in 16-bit blocks (UTF-16LE).
+	 *
+	 * @param   integer  $low   low byte value
+	 * @param   integer  $high  high byte value
+	 * @return  void
+	 */
+	protected function put($low, $high)
+	{
+		$this->output .= chr($low);
+		$this->output .= chr($high);
+		$this->pos++;
+	}
+
+} // End RarUnicodeFilename class
 
 /* ----- end of rescene.php ----- */
