@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2013-06-30
+ * Last version: 2013-08-03
  *
  * Features:
  *  - process a SRR file which returns:
@@ -83,6 +83,8 @@
  *
  */
 
+// necessary for storing files in large (60MB) SRR files
+ini_set('memory_limit', '256M');
 
 $BLOCKNAME = array(
 0x69 => 'SRR VolumeHeader',
