@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2013-08-03
+ * Last version: 2013-11-29
  *
  * Features:
  *  - process a SRR file which returns:
@@ -78,8 +78,8 @@
  *  - http://www.srrdb.com/release/details/Race.To.Witch.Mountain.1080p.BluRay.x264-HD1080 (wrong file size)
  *  - http://www.srrdb.com/release/details/NBA.2010.03.02.Pacers.Vs.Lakers.720p.HDTV.x264-BALLS (crc FFFFFFFF)
  *  - http://www.srrdb.com/release/details/Dexter.S01E03.720p.Bluray.x264-ORPHEUS (short crc)
- *  - http://www.srrdb.com/release/details/Alien_Ant_Farm-Smooth_Criminal-PROMO-CDS-FLAC-2001-oNePiEcE (ID3 on FLAC)
  *  - When renaming a file and only the capitals will be different, a file with the old name is added.
+ *  - http://www.srrdb.com/release/details/Scrapland.AlcoholClone.MI-NOGRP (dupe names, so not all files get shown)
  *
  */
 
@@ -1652,7 +1652,7 @@ class Block {
 
 function detectFileFormat($fileHandle) {
     $ft = FileType::Unknown;
-    $firstBytes = strtoupper(bin2hex(fread($fileHandle, 4)));
+    $firstBytes = strtoupper(bin2hex(fread($fileHandle, 4))); // first 4 bytes
 
     switch($firstBytes) {
         case '1A45DFA3':
@@ -1671,14 +1671,38 @@ function detectFileFormat($fileHandle) {
         	$ft = FileType::MP3;
         	break;
         default:
-            if ('66747970' ===  bin2hex(fread($fileHandle, 4))) {
+            if ('66747970' ===  bin2hex(fread($fileHandle, 4))) { // next 4 bytes
                 $ft = FileType::MP4;
             } elseif (substr($firstBytes, 0, 6) == '494433') { // ID3
-            	$ft = FileType::MP3;
+            	// can be MP3 or FLAC
+            	fseek($fileHandle, 6, SEEK_SET);
+            	$tagLen = calcDecTagLen(fread($fileHandle, 4));
+            	if (fseek($fileHandle, 10 + $tagLen, SEEK_SET) === 0) {
+	            	if (fread($fileHandle, 4) === 'fLaC') {
+	            		$ft = FileType::FLAC;
+	            	} else {
+	            	   	$ft = FileType::MP3;
+	            	}
+            	} else {
+            		// not enough data in the file
+            	   	$ft = FileType::MP3;
+            	}
             }
     }
     rewind($fileHandle);
     return $ft;
+}
+
+// Calculate Tag Length from bytes 6-10 of ID3 header
+// function from comment: http://php.net/manual/en/ref.id3.php
+function calcDecTagLen($word) {
+	$m = 1;
+	$int = 0;
+	for ($i=strlen($word)-1;$i>-1;$i--) {
+		$int +=$m*ord($word[$i]);
+		$m=$m*128;
+	}
+	return $int;
 }
 
 function parse_srs_avi($fh, $srsSize) {
@@ -1850,10 +1874,16 @@ function parse_srs_mp3($fh, $srsSize) {
 	
 	$data = fread($fh, $srsSize);
 	
-	//TODO: won't work correctly if there is the string SRSF in the ID3 tag
-	$f = strpos($data, 'SRSF');
-	$t = strpos($data, 'SRST', $f);
-	$p = strpos($data, 'SRSP', $t);
+	// won't work correctly if there is the string 'SRSF' in the ID3 tag
+	// => so skip the ID3 tag
+	if (substr($data, 0, 3) === 'ID3') {
+		$tagLen = calcDecTagLen(substr($data, 6, 4));
+		$data = substr($data, 10 + $tagLen);
+	}
+	
+	$f = strpos($data, 'SRSF'); // file
+	$t = strpos($data, 'SRST', $f); // track
+	$p = strpos($data, 'SRSP', $t); // fingerprint
 	if ($f !== FALSE) {
 		$l = unpack('Vlength', substr($data, $f + 4, 4));
 		$result['fileData'] = new FileData(substr($data, $f + 8, $l['length'] - 8));
@@ -2249,6 +2279,15 @@ class FlacReader {
 		if ($header == 'fLaC') {
 			$this->blockType = 'fLaC';
 			$this->blockLength = 0;
+			return TRUE;
+		}
+		if (substr($header, 0, 3) == 'ID3') {
+			// set position to ID3 size field
+			fseek($this->fh, $this->blockStartPosition + 6, SEEK_SET);
+			$tagLen = calcDecTagLen(fread($this->fh, 4));
+			$this->blockType = 'ID3';
+			$this->blockLength = 10 + $tagLen - 4; // -4 to fit the flac model
+			fseek($this->fh, $this->blockStartPosition + 4, SEEK_SET); // go back to the size of one METADATA_BLOCK_HEADER
 			return TRUE;
 		}
 
