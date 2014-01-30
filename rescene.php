@@ -388,7 +388,7 @@ function processSrrHandle($fileHandle, $srrSize) {
                 $block->skipBlock();
                 // calculate CRC of the stored file
                 $sdata = getStoredFileDataHandle($fileHandle, $block->storedFileStartOffset, $block->addSize);
-                $sf['fileCrc'] = strtoupper(dechex(crc32($sdata)));
+                $sf['fileCrc'] = strtoupper(str_pad(dechex(crc32($sdata)), 8, '0', STR_PAD_LEFT));
                 // $sf['fileCrc'] = dechex(crc32(fread($fh, $block->addSize)));
                 // $sf['fileCrc'] = hash('crc32b', fread($fh, $block->addSize));
 
