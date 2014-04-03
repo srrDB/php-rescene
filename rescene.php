@@ -1,7 +1,7 @@
 <?php 
 /**
  * PHP Library to read and edit a .srr file. It reads .srs files.
- * Copyright (c) 2011-2013 Gfy
+ * Copyright (c) 2011-2014 Gfy
  *
  * rescene.php is free software, you can redistribute it and/or modify
  * it under the terms of GNU Affero General Public License
@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2013-11-29
+ * Last version: 2014-04-03
  *
  * Features:
  *  - process a SRR file which returns:
@@ -57,6 +57,7 @@
  *  - Support to read SRS files. (AVI/MKV/MP4/WMV/FLAC/MP3)
  *  - Sort stored files inside the SRR.
  *  - OpenSubtitles.org hash support.
+ *  - Extract the SRR meta data of a single RAR set
  *
  *  - nfo compare: strip line endings + new line?
  *      Indiana.Jones.And.The.Last.Crusade.1989.PAL.DVDR-DNA
@@ -74,12 +75,12 @@
  *  - sorting the list of the stored files by hand
  *  - "Application name found in the middle of the SRR."
  *    causes hashes to be different
- *  - http://www.srrdb.com/release/details/Pokemon_Pearl_NDS_KOR-HMH (strange chars)
  *  - http://www.srrdb.com/release/details/Race.To.Witch.Mountain.1080p.BluRay.x264-HD1080 (wrong file size)
  *  - http://www.srrdb.com/release/details/NBA.2010.03.02.Pacers.Vs.Lakers.720p.HDTV.x264-BALLS (crc FFFFFFFF)
  *  - http://www.srrdb.com/release/details/Dexter.S01E03.720p.Bluray.x264-ORPHEUS (short crc)
  *  - When renaming a file and only the capitals will be different, a file with the old name is added.
  *  - http://www.srrdb.com/release/details/Scrapland.AlcoholClone.MI-NOGRP (dupe names, so not all files get shown)
+ *  - Add error when a file is twice in the SFV (twice the meta data too)
  *
  */
 
@@ -137,6 +138,7 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
         echo "  -r 'file to rename' (Rename)\n";
         echo "  -v 'file to get' (View)\n";
         echo "  -x 'file to write' (eXtract)\n";
+        echo "  -p 'file to split' (sPlit)\n";
         echo "  -h 'special hash of the SRR file' (Hash)\n";
         echo "  -a 'show SRS info (sAmple)\n";
         echo "  -c 'compare two SRR files' (Compare)\n";
@@ -205,6 +207,10 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
                 case '-c': // compare
                     print_r(compareSrr($srr, $file));
                     break;
+                case '-p': // split
+                	$data = grabSrrSubset($srr, $file);
+                	file_put_contents('rescene.php_split.srr', $data);
+                	break;
                 default:
                     echo 'Unknown parameter. Use -r, -a, -v, -x or -c.';
             }
@@ -222,6 +228,12 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
             } else {
                 echo "NOT OK!\n";
             }
+            echo 'createSrrHeaderBlockTest: ';
+            if (createSrrHeaderBlockTest()) {
+            	echo "OK!\n";
+            } else {
+            	echo "NOT OK!\n";
+            }
             //compareSrr($srr, $srr);
 
             //$data = file_get_contents($srr);
@@ -235,12 +247,12 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
             //}
 
             //process file
-            if ($result = processSrr($srr)) {
-                print_r($result);
-                echo 'success';
-            } else {
-                echo 'failure';
-            }
+//             if ($result = processSrr($srr)) {
+//                 print_r($result);
+//                 echo 'success';
+//             } else {
+//                 echo 'failure';
+//             }
             
 //             $sf = array_keys($result['storedFiles']);
 //             sort($sf);
@@ -383,6 +395,7 @@ function processSrrHandle($fileHandle, $srrSize) {
                     $temp = processSfv(fread($fh, $block->addSize));
                     $sfv['comments'] = array_merge($sfv['comments'], $temp['comments']);
                     $sfv['files'] = array_merge($sfv['files'], $temp['files']);
+                    $sf['basenameVolume'] = getBasenameVolume($block->fileName);
                 }
 
                 $block->skipBlock();
@@ -424,8 +437,9 @@ function processSrrHandle($fileHandle, $srrSize) {
                     // when the SRR is build without SFV or the SFV is missing some lines
                     $f['fileCrc'] = 'UNKNOWN!';
                     // useful for actually comparing srr data
-                    // $f['offsetStartSrr'] = $block->startOffset; // where the SRR block begins
+                    $f['offsetStartSrr'] = $block->startOffset; // where the SRR block begins
                     $f['offsetStartRar'] = ftell($fh); // where the actual RAR headers begin
+                    $f['basenameVolume'] = getBasenameVolume($block->rarName);
                 }
 
                 $rar_files[$key] = $f;
@@ -1198,7 +1212,7 @@ function mergeSrr($one, $two, $storeOne, $storeTwo, $rarOne, $rarTwo, $result) {
 
 }
 
-function processSrsData($srsFileData) {
+function processSrsData(&$srsFileData) {
     // http://www.php.net/manual/en/wrappers.php.php
     // Set the limit to 5 MiB. After this limit, a temporary file will be used.
     $memoryLimit = 5 * 1024 * 1024;
@@ -1296,6 +1310,42 @@ function sortStoredFiles($srr, $sortedFileNameList) {
     return TRUE;
 }
 
+/**
+ * Returns the data of an SRR file that only contains the SFV and
+ * the RAR meta data of a certain RAR set.
+ * @param file $srrFile
+ * @param string $volume
+ * @param string $applicationName
+ * @return string
+ */
+function grabSrrSubset($srrFile, $volume, $applicationName = 'rescene.php partial SRR file') {
+    $srrInfo = processSrr($srrFile);
+    
+    // 1) construct SRR file header
+    $result =  createSrrHeaderBlock($applicationName);
+
+    // 2) add the right SFV file
+    foreach ($srrInfo['storedFiles'] as $key => $value) {
+		if (strtolower(substr($key, -4)) === '.sfv' &&
+			$value['basenameVolume'] === $volume) {
+			$length = $value['fileSize'] + ($value['fileOffset'] - $value['blockOffset']);
+			$result .= getStoredFileData($srrFile, $value['blockOffset'], $length);
+		}
+    }
+    
+    // 3) add the right RAR meta data
+    foreach ($srrInfo['rarFiles'] as $key => $value) {
+    	if ($value['basenameVolume'] === $volume) {
+    		$length = $value['offsetEnd'] - $value['offsetStartSrr'];
+    		$result .= getStoredFileData($srrFile, $value['offsetStartSrr'], $length);	
+    	}
+    }
+    
+    // 4) ignore everything else
+
+    return $result;
+}
+
 // Private helper functions -------------------------------------------------------------------------------------------
 
 function getFileSize($file) {
@@ -1308,6 +1358,37 @@ function getFileSize($file) {
 
 function isFolder($dir) {
     return (strpos($dir, '/', 1) !== FALSE);
+}
+
+/**
+ * Removes the path and extention information
+ * so the common volume name stays.
+ * @param string $pathVolumeName
+ */
+function getBasenameVolume($pathVolumeName) {
+	$fileName = basename($pathVolumeName, '.rar');
+	$matches = Array();
+	if (preg_match("/(.*)(\.part\d+|\.\d{3}|\.[r-v]\d{2}|\.sfv)$/i", $fileName, $matches)) {
+		return $matches[1];	
+	} else {
+		return $fileName; // strange case that shouldn't happen
+	}
+}
+
+/**
+ * Constructs a byte string of the SRR Header Block
+ * @param string $applicationName
+ * @return string
+ */
+function createSrrHeaderBlock($applicationName) {
+	$nameLength = strlen($applicationName);
+	return pack('H*vv', '6969690100', 7 + 2 + $nameLength, $nameLength) . $applicationName;
+}
+
+function createSrrHeaderBlockTest() {
+	$expected = pack('H*', '696969010016000D00707952655363656E6520302E35');
+	$actual = createSrrHeaderBlock('pyReScene 0.5');
+	return $expected === $actual;
 }
 
 /**
