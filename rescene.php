@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2014-04-03
+ * Last version: 2014-05-08
  *
  * Features:
  *  - process a SRR file which returns:
@@ -81,6 +81,7 @@
  *  - When renaming a file and only the capitals will be different, a file with the old name is added.
  *  - http://www.srrdb.com/release/details/Scrapland.AlcoholClone.MI-NOGRP (dupe names, so not all files get shown)
  *  - Add error when a file is twice in the SFV (twice the meta data too)
+ *  - Add warning when there is no SFV file and the SRR contains RAR meta data
  *
  */
 
@@ -1148,11 +1149,11 @@ function compareSrrRaw($rone, $rtwo, $one, $two) {
     return $result;
 }
 
-function getFilesByExt($fileList, $extention) {
+function getFilesByExt($fileList, $extension) {
     $result = array();
 
     foreach ($fileList as $key => $value) {
-        if (strtolower(substr($value['fileName'], - 4)) === $extention) {
+        if (strtolower(substr($value['fileName'], - 4)) === $extension) {
             $result[$key] = $value;
         }
     }
@@ -1361,14 +1362,14 @@ function isFolder($dir) {
 }
 
 /**
- * Removes the path and extention information
+ * Removes the path and extension information
  * so the common volume name stays.
  * @param string $pathVolumeName
  */
 function getBasenameVolume($pathVolumeName) {
-	$fileName = basename($pathVolumeName, '.rar');
+	$fileName = basename($pathVolumeName);
 	$matches = Array();
-	if (preg_match("/(.*)(\.part\d+|\.\d{3}|\.[r-v]\d{2}|\.sfv)$/i", $fileName, $matches)) {
+	if (preg_match("/(.*)(\.part\d+\.rar|\.rar|\.\d{3}|\.[r-v]\d{2}|\.sfv)$/i", $fileName, $matches)) {
 		return $matches[1];	
 	} else {
 		return $fileName; // strange case that shouldn't happen
