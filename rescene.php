@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2014-05-08
+ * Last version: 2014-05-18
  *
  * Features:
  *  - process a SRR file which returns:
@@ -116,8 +116,13 @@ class FileType {
     const Unknown = '';
 }
 
+// for suppressing error messages
+$CLI_APP = false;
+
 // cli progs are cool
 if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
+	$CLI_APP = true;
+	
     /* How to use the CLI version in Windows:
      - Download and install PHP.  http://windows.php.net/download/
     - Run this script by entering something like
@@ -1252,7 +1257,11 @@ function processSrsHandle($fileHandle, $srsSize) {
         	$result = parse_srs_mp3($fileHandle, $srsSize);
         	break;
         default:
-            echo 'SRS file type not detected';
+        	global $CLI_APP;
+        	if ($CLI_APP) { // don't show the message when used as library
+	            echo 'SRS file type not detected';
+        	}
+        	break;
     }
     fclose($fileHandle);
     return $result;
@@ -1369,7 +1378,7 @@ function isFolder($dir) {
 function getBasenameVolume($pathVolumeName) {
 	$fileName = basename($pathVolumeName);
 	$matches = Array();
-	if (preg_match("/(.*)(\.part\d+\.rar|\.rar|\.\d{3}|\.[r-v]\d{2}|\.sfv)$/i", $fileName, $matches)) {
+	if (preg_match("/(.*?)(\.part\d+\.rar|\.rar|\.\d{3}|\.[r-v]\d{2}|\.sfv)$/i", $fileName, $matches)) {
 		return $matches[1];	
 	} else {
 		return $fileName; // strange case that shouldn't happen
