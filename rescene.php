@@ -85,8 +85,8 @@
  *
  */
 
-// necessary for storing files in large (60MB) SRR files
-ini_set('memory_limit', '256M');
+// necessary for storing files in large (60MB) SRR files (limit set to 256MB)
+ini_set('memory_limit', '512M');
 
 $BLOCKNAME = array(
 0x69 => 'SRR VolumeHeader',
