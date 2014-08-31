@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2014-05-18
+ * Last version: 2014-08-31
  *
  * Features:
  *  - process a SRR file which returns:
@@ -85,7 +85,7 @@
  *
  */
 
-// necessary for storing files in large (60MB) SRR files (limit set to 256MB)
+// necessary for storing files in large (60MB) SRR files
 ini_set('memory_limit', '512M');
 
 $BLOCKNAME = array(
@@ -1322,7 +1322,7 @@ function sortStoredFiles($srr, $sortedFileNameList) {
 
 /**
  * Returns the data of an SRR file that only contains the SFV and
- * the RAR meta data of a certain RAR set.
+ * the RAR meta data of a certain RAR set. Capitals are ignored for $volume.
  * @param file $srrFile
  * @param string $volume
  * @param string $applicationName
@@ -1330,6 +1330,7 @@ function sortStoredFiles($srr, $sortedFileNameList) {
  */
 function grabSrrSubset($srrFile, $volume, $applicationName = 'rescene.php partial SRR file') {
     $srrInfo = processSrr($srrFile);
+    $volume = strtolower($volume);
     
     // 1) construct SRR file header
     $result =  createSrrHeaderBlock($applicationName);
@@ -1337,7 +1338,7 @@ function grabSrrSubset($srrFile, $volume, $applicationName = 'rescene.php partia
     // 2) add the right SFV file
     foreach ($srrInfo['storedFiles'] as $key => $value) {
 		if (strtolower(substr($key, -4)) === '.sfv' &&
-			$value['basenameVolume'] === $volume) {
+			strtolower($value['basenameVolume']) === $volume) {
 			$length = $value['fileSize'] + ($value['fileOffset'] - $value['blockOffset']);
 			$result .= getStoredFileData($srrFile, $value['blockOffset'], $length);
 		}
@@ -1345,7 +1346,7 @@ function grabSrrSubset($srrFile, $volume, $applicationName = 'rescene.php partia
     
     // 3) add the right RAR meta data
     foreach ($srrInfo['rarFiles'] as $key => $value) {
-    	if ($value['basenameVolume'] === $volume) {
+    	if (strtolower($value['basenameVolume']) === $volume) {
     		$length = $value['offsetEnd'] - $value['offsetStartSrr'];
     		$result .= getStoredFileData($srrFile, $value['offsetStartSrr'], $length);	
     	}
@@ -1373,6 +1374,7 @@ function isFolder($dir) {
 /**
  * Removes the path and extension information
  * so the common volume name stays.
+ * Returns file name upon failure.
  * @param string $pathVolumeName
  */
 function getBasenameVolume($pathVolumeName) {
