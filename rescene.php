@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2014-08-31
+ * Last version: 2014-09-24
  *
  * Features:
  *  - process a SRR file which returns:
@@ -335,6 +335,7 @@ function processSrrHandle($fileHandle, $srrSize) {
 
     // other initializations
     $read = 0; // number of bytes we have read so far
+    $last_read = 0; // to prevent looping on encountering bad data
     $current_rar = NULL;
 
     while($read < $srrSize) {
@@ -544,6 +545,12 @@ function processSrrHandle($fileHandle, $srrSize) {
 
         // nuber of bytes we have processed
         $read = ftell($fh);
+        
+        // don't loop when bad data is encountered
+        if ($read === $last_read) {
+        	break;
+        }
+        $last_read = $read;
     }
 
     fclose($fh); // close the file
