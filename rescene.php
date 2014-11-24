@@ -337,6 +337,7 @@ function processSrrHandle($fileHandle, $srrSize) {
     $read = 0; // number of bytes we have read so far
     $last_read = 0; // to prevent looping on encountering bad data
     $current_rar = NULL;
+    $is_old_style_naming = TRUE;
 
     while($read < $srrSize) {
         $add_size = TRUE;
@@ -402,7 +403,7 @@ function processSrrHandle($fileHandle, $srrSize) {
                     $temp = processSfv(fread($fh, $block->addSize));
                     $sfv['comments'] = array_merge($sfv['comments'], $temp['comments']);
                     $sfv['files'] = array_merge($sfv['files'], $temp['files']);
-                    $sf['basenameVolume'] = getBasenameVolume($block->fileName);
+                    $sf['basenameVolume'] = getBasenameVolume($block->fileName, FALSE);
                 }
 
                 $block->skipBlock();
@@ -446,7 +447,7 @@ function processSrrHandle($fileHandle, $srrSize) {
                     // useful for actually comparing srr data
                     $f['offsetStartSrr'] = $block->startOffset; // where the SRR block begins
                     $f['offsetStartRar'] = ftell($fh); // where the actual RAR headers begin
-                    $f['basenameVolume'] = getBasenameVolume($block->rarName);
+                    $f['basenameVolume'] = getBasenameVolume($block->rarName, !$is_old_style_naming);
                 }
 
                 $rar_files[$key] = $f;
@@ -510,6 +511,12 @@ function processSrrHandle($fileHandle, $srrSize) {
                 $ext = strtolower(substr($current_rar['fileName'], - 4));
                 if (($block->flags & 0x0100) && $ext !== '.rar' && $ext !== '.001') {
                     array_push($warnings, "MHD_FIRSTVOLUME flag set for {$current_rar['fileName']}.");
+                }
+                // new numbering and a volume
+                if ($block->flags & 0x0010 && $block->flags & 0x0001) {
+                	$is_old_style_naming = FALSE;
+                } else {
+                	$is_old_style_naming = TRUE;
                 }
             case 0x72: // RAR Marker
             case 0x7B: // RAR Archive End
@@ -1355,7 +1362,7 @@ function grabSrrSubset($srrFile, $volume, $applicationName = 'rescene.php partia
     foreach ($srrInfo['rarFiles'] as $key => $value) {
     	if (strtolower($value['basenameVolume']) === $volume) {
     		$length = $value['offsetEnd'] - $value['offsetStartSrr'];
-    		$result .= getStoredFileData($srrFile, $value['offsetStartSrr'], $length);	
+    		$result .= getStoredFileData($srrFile, $value['offsetStartSrr'], $length);
     	}
     }
     
@@ -1384,10 +1391,17 @@ function isFolder($dir) {
  * Returns file name upon failure.
  * @param string $pathVolumeName
  */
-function getBasenameVolume($pathVolumeName) {
+function getBasenameVolume($pathVolumeName, $new_numbering) {
+	// Doctor.Who.The.Enemy.Of.The.World.S05E18.DVDRip.x264-PFa
+	// pfa-dw.s05e18.teotw.part02.rar
+	// pfa-dw.s05e18.teotw.part02.r00
+	$pattern = "/(.*?)(\.rar|\.\d{3}|\.[r-v]\d{2}|\.sfv)$/i";
+	if ($new_numbering) {
+		$pattern = "/(.*?)(\.part\d+\.rar|\.rar|\.\d{3}|\.[r-v]\d{2}|\.sfv)$/i";
+	}
 	$fileName = basename($pathVolumeName);
 	$matches = Array();
-	if (preg_match("/(.*?)(\.part\d+\.rar|\.rar|\.\d{3}|\.[r-v]\d{2}|\.sfv)$/i", $fileName, $matches)) {
+	if (preg_match($pattern, $fileName, $matches)) {
 		return $matches[1];	
 	} else {
 		return $fileName; // strange case that shouldn't happen
