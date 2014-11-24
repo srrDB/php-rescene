@@ -1512,7 +1512,7 @@ function newFileOffset($srr) {
  */
 function processSfv($data) {
     // create array of all the lines
-    $lines = explode("\n", $data);
+    $lines = preg_split("/\r\n|\n|\r/", $data);
     $result = array();
     $result['comments'] = array();
     $result['files'] = array();
