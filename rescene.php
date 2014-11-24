@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2014-09-24
+ * Last version: 2014-11-24
  *
  * Features:
  *  - process a SRR file which returns:
@@ -1513,12 +1513,13 @@ function processSfv($data) {
             if (in_array($line[0], array(';')) or $lineLength < 10) {
                 array_push($result['comments'], $line);
             } else {
-                // parse SFV line
-                $spaceIndex = strrpos($line, ' ');
-                $fileName = substr($line, 0, $spaceIndex);
-                // TODO: A sfv file can contain multiple spaces in between
-                // TODO: the crc isn't always 8 chars
-                $result['files'][$fileName] = substr($line, $spaceIndex + 1, 8);
+            	// parse SFV line
+            	$spaceIndex = strrpos($line, ' ');
+            	// strip multiple spaces/tabs in between
+            	$fileName = rtrim(substr($line, 0, $spaceIndex));
+            	// make CRC value always 8 characters
+            	$crc = rtrim(substr($line, $spaceIndex + 1, 8));
+            	$result['files'][$fileName] = str_pad($crc, 8 - strlen($crc), '0');
             }
         }
     }
