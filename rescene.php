@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2014-11-24
+ * Last version: 2014-12-08
  *
  * Features:
  *  - process a SRR file which returns:
@@ -240,6 +240,13 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
             } else {
             	echo "NOT OK!\n";
             }
+            echo 'getBasenameVolumeTest: ';
+            if (getBasenameVolumeTest()) {
+            	echo "OK!\n";
+            } else {
+            	echo "NOT OK!\n";
+            }
+            
             //compareSrr($srr, $srr);
 
             //$data = file_get_contents($srr);
@@ -337,7 +344,6 @@ function processSrrHandle($fileHandle, $srrSize) {
     $read = 0; // number of bytes we have read so far
     $last_read = 0; // to prevent looping on encountering bad data
     $current_rar = NULL;
-    $is_old_style_naming = TRUE;
 
     while($read < $srrSize) {
         $add_size = TRUE;
@@ -447,7 +453,7 @@ function processSrrHandle($fileHandle, $srrSize) {
                     // useful for actually comparing srr data
                     $f['offsetStartSrr'] = $block->startOffset; // where the SRR block begins
                     $f['offsetStartRar'] = ftell($fh); // where the actual RAR headers begin
-                    $f['basenameVolume'] = getBasenameVolume($block->rarName, !$is_old_style_naming);
+                    // $f['basenameVolume'] set later when volume header is available
                 }
 
                 $rar_files[$key] = $f;
@@ -505,19 +511,17 @@ function processSrrHandle($fileHandle, $srrSize) {
                         $block->skipBlock();
                     }
                     break;
-                } // other types have no data removed and will be fully skipped: fall through
+                } // other types have no data removed and will be fully skipped
+                $block->skipBlock();
+                break;
             case 0x73: // RAR Volume Header
                 // warnings for ASAP and IMMERSE -> crappy rars
                 $ext = strtolower(substr($current_rar['fileName'], - 4));
                 if (($block->flags & 0x0100) && $ext !== '.rar' && $ext !== '.001') {
                     array_push($warnings, "MHD_FIRSTVOLUME flag set for {$current_rar['fileName']}.");
                 }
-                // new numbering and a volume
-                if ($block->flags & 0x0010 && $block->flags & 0x0001) {
-                	$is_old_style_naming = FALSE;
-                } else {
-                	$is_old_style_naming = TRUE;
-                }
+                $is_new_style_naming = $block->flags & 0x0010 && $block->flags & 0x0001; // new numbering and a volume
+                $current_rar['basenameVolume'] = getBasenameVolume($current_rar['fileName'], $is_new_style_naming);
             case 0x72: // RAR Marker
             case 0x7B: // RAR Archive End
             case 0x75: // Old Comment
@@ -1406,6 +1410,15 @@ function getBasenameVolume($pathVolumeName, $new_numbering) {
 	} else {
 		return $fileName; // strange case that shouldn't happen
 	}
+}
+
+function getBasenameVolumeTest() {
+	return (getBasenameVolume("i.didnt.know.i.was.pregnant.s04e02.hdtv.xvid-crimson.part01.rar", TRUE)
+			== "i.didnt.know.i.was.pregnant.s04e02.hdtv.xvid-crimson" &&
+			getBasenameVolume("pfa-dw.s05e18.teotw.part02.rar", FALSE)
+			== "pfa-dw.s05e18.teotw.part02" &&
+			getBasenameVolume("pfa-dw.s05e18.teotw.part02.r00", FALSE)
+			== "pfa-dw.s05e18.teotw.part02");
 }
 
 /**
