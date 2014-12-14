@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2014-12-08
+ * Last version: 2014-12-14
  *
  * Features:
  *  - process a SRR file which returns:
@@ -1544,6 +1544,13 @@ function processSfv($data) {
             	$spaceIndex = strrpos($line, ' ');
             	// strip multiple spaces/tabs in between
             	$fileName = rtrim(substr($line, 0, $spaceIndex));
+            	// http://www.traction-software.co.uk/sfvchecker/ are doing it wrong...
+            	// ; sfv created by SFV Checker
+            	// "01-the_contingency_plan-apocalypse_in_stereo-kzt.mp3" 9757ce72
+            	// ; Total 5 File(s) Combined CRC32 Checksum: a4b5d005
+            	if (substr($fileName, 0, 1) === '"' && substr($fileName, strlen($fileName) - 1) === '"') {
+            		$fileName = substr($fileName, 1, strlen($fileName) - 2);
+            	}
             	// make CRC value always 8 characters
             	$crc = rtrim(substr($line, $spaceIndex + 1, 8));
             	$result['files'][$fileName] = str_pad($crc, 8 - strlen($crc), '0');
