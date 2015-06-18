@@ -1,7 +1,7 @@
 <?php 
 /**
  * PHP Library to read and edit a .srr file. It reads .srs files.
- * Copyright (c) 2011-2014 Gfy
+ * Copyright (c) 2011-2015 Gfy
  *
  * rescene.php is free software, you can redistribute it and/or modify
  * it under the terms of GNU Affero General Public License
@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2014-12-14
+ * Last version: 2015-06-06
  *
  * Features:
  *  - process a SRR file which returns:
@@ -300,8 +300,16 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
  */
 function processSrr($file) {
     $fh = fopen($file, 'rb');
-    // file handle gets closed afterwards
-    return processSrrHandle($fh, getFileSize($file));
+    
+    if (flock($fh, LOCK_SH)) {
+    	$result = processSrrHandle($fh);
+    	flock($fh, LOCK_UN); // release the lock
+    } else {
+    	$result = FALSE;
+    }
+    
+    fclose($fh); // close the file
+	return $result;
 }
 
 /**
@@ -310,22 +318,24 @@ function processSrr($file) {
  */
 function processSrrData(&$srrFileData) {
     // http://www.php.net/manual/en/wrappers.php.php
-    // Set the limit to 5 MiB. After this limit, a temporary file will be used.
+	// Set the limit to 5 MiB. After this limit, a temporary file will be used.
     $memoryLimit = 5 * 1024 * 1024;
     $fp = fopen("php://temp/maxmemory:$memoryLimit", 'r+');
-    fputs($fp, $srrFileData);
+    fwrite($fp, $srrFileData);
     rewind($fp);
-    $fileAttributes = fstat($fp);
-    return processSrrHandle($fp, $fileAttributes['size']);
+    $result = processSrrHandle($fp);
+	fclose($fp);
+    return $result;
 }
 
 /**
- * Closes the file handle.
+ * Leaves the file handle open!
  * Only used in the 2 functions above.
  */
-function processSrrHandle($fileHandle, $srrSize) {
+function processSrrHandle($fileHandle) {
     // global $BLOCKNAME;
     $fh = $fileHandle;
+    $srrSize = getFileSizeHandle($fileHandle);
 
     // variables to store all resulting data
     $appName = 'No SRR application name found';
@@ -414,7 +424,7 @@ function processSrrHandle($fileHandle, $srrSize) {
 
                 $block->skipBlock();
                 // calculate CRC of the stored file
-                $sdata = getStoredFileDataHandle($fileHandle, $block->storedFileStartOffset, $block->addSize);
+                $sdata = stream_get_contents($fileHandle, $block->addSize, $block->storedFileStartOffset);
                 $sf['fileCrc'] = strtoupper(str_pad(dechex(crc32($sdata)), 8, '0', STR_PAD_LEFT));
                 // $sf['fileCrc'] = dechex(crc32(fread($fh, $block->addSize)));
                 // $sf['fileCrc'] = hash('crc32b', fread($fh, $block->addSize));
@@ -564,8 +574,6 @@ function processSrrHandle($fileHandle, $srrSize) {
         $last_read = $read;
     }
 
-    fclose($fh); // close the file
-
     // add sfv CRCs to all the rar files we have found
     foreach ($sfv['files'] as $key => $val) {
         // the capitalization between sfv and the actual file isn't always the same
@@ -597,89 +605,66 @@ function processSrrHandle($fileHandle, $srrSize) {
 }
 
 /**
- * Returns the bytes of a stored file. (or any other part of the SRR file)
- * It makes use of the data returned in the above function.
- * @param $srrFile  The name of the SRR file to read.
- * @param $offset   The location where the stored file starts in the SRR file.
- * @param $length   The size of the stored file to read.
- * @return The bytes of the file.
- */
-function getStoredFileData($srrFile, $offset, $length) {
-    // string file_get_contents ( string $filename [, bool $use_include_path = FALSE
-    //                              [, resource $context [, int $offset = -1 [, int $maxlen ]]]] )
-    // http://php.net/manual/en/function.file-get-contents.php
-    return file_get_contents($srrFile, FALSE, NULL, $offset, $length);
-}
-
-function getStoredFileDataHandle($fileHandle, $offset, $length) {
-    return stream_get_contents($fileHandle, $length, $offset);
-}
-
-/**
  * Same as the getStoredFileData() function, but based on the file name.
  * @param $srrfile  The name of the SRR file to read.
  * @param $filename The file we want the contents from, including the path.
- * @return The bytes of the file.
+ * @return The bytes of the file or FALSE on failure.
  */
 function getStoredFile($srrfile, $filename) {
-    $srr = processSrr($srrfile);
+	$result = FALSE;
+	$fh = fopen($srrfile, 'rb');
+	
+	if (flock($fh, LOCK_SH)) {
+		$srr = processSrrHandle($fh);
+		
+		foreach($srr['storedFiles'] as $key => $value) {
+	        if($key === $filename) {
+	            $result = stream_get_contents($fh, $value['fileSize'], $value['fileOffset']);
+	            break;
+	        }
+    	}
 
-    foreach($srr['storedFiles'] as $key => $value) {
-        if($key === $filename) {
-            return getStoredFileData($srrfile, $value['fileOffset'], $value['fileSize']);
-        }
-    }
-
-    // // a faster approach for the fun of it:
-    // $fh = fopen($srrfile, 'rb');
-    // $sentinel = 0;
-    // while ($sentinel < filesize($srrfile)) {
-    //     $warnings_stub = array();
-    //     $block = new Block($fh, $warnings_stub);
-    //     $jump = $block->hsize + $block->addSize;
-    //
-    //     if ($block->blockType === 0x6A) { // a stored file block found
-    //         $block->srrReadStoredFileHeader();
-    //         if ($block->fileName === $filename) {
-    //             return getStoredFileData($srrfile, $block->storedFileStartOffset, $block->addSize);
-    //         }
-    //         $block->skipBlock();
-    //     } elseif ($block->blockType === 0x74 or $block->blockType === 0x78 ||
-    //               ($block->blockType === 0x7A && $block->fileName === 'RR')) {
-    //         // a rar packed file or recovery block that has its content removed
-    //         $jump = $block->hsize;
-    //         $block->skipHeader();
-    //     } else {
-    //         $block->skipBlock();
-    //     }
-    //     $sentinel += $jump;
-    // }
+		flock($fh, LOCK_UN); // release the lock
+	}
+	
+	fclose($fh); // close the file
+	return $result;
 }
 
 /**
  * Removes a file stored in the SRR file.
- * @param   string  $srr        Path of the SRR file.
+ * @param   string  $srrfile    Path of the SRR file.
  * @param   string  $filename   Path and name of the file to remove.
  * @return TRUE on success, FALSE otherwise
  */
-function removeFile($srr, $filename) {
-    $result = processSrr($srr);
-
-    foreach ($result['storedFiles'] as $key => $value) {
-        if ($value['fileName'] === $filename) {
-            // how much to remove? read the block starting from the offset
-            $fh = fopen($srr, 'rb');
-            $before = fread($fh, $value['blockOffset']);
-            $warnings_stub = array();
-            $block = new Block($fh, $warnings_stub);
-            fseek($fh, $value['blockOffset'] + $block->fullSize, SEEK_SET);
-            $after = fread($fh, $result['srrSize']); // srrSize: the (max) amount to read
-            fclose($fh);
-            file_put_contents($srr, $before . $after, LOCK_EX);
-            return TRUE;
-        }
-    }
-    return FALSE;
+function removeFile($srrfile, $filename) {
+	$result = FALSE;
+	$fh = fopen($srrfile, 'c+b');
+	
+	if (flock($fh, LOCK_EX)) {
+		$srr = processSrrHandle($fh);
+	
+		foreach ($srr['storedFiles'] as $key => $value) {
+			if ($value['fileName'] === $filename) {
+				// how much to remove? read the block starting from the offset
+				fseek($fh, $value['blockOffset'], SEEK_SET);
+				$warnings_stub = array();
+				$block = new Block($fh, $warnings_stub);
+				fseek($fh, $value['blockOffset'] + $block->fullSize, SEEK_SET);
+				$after = fread($fh, $srr['srrSize']); // srrSize: the (max) amount to read
+				ftruncate($fh, $value['blockOffset']);
+				fseek($fh, 0, SEEK_END); // Upon success, returns 0; otherwise, returns -1. 
+				fwrite($fh, $after);
+				$result = TRUE;
+				break;
+			}
+		}
+	
+		flock($fh, LOCK_UN); // release the lock
+	}
+	
+	fclose($fh); // close the file
+	return $result;
 }
 
 /**
@@ -700,54 +685,79 @@ function storeFileCli($srr, $file, $path='') {
 
 /**
  * Adds a file to the saved files inside a SRR file.
- * @param string    $srr        The path of the SRR file.
+ * @param string    $srrFile    The path of the SRR file.
  * @param string    $filePath   The path and name that will be stored.
  * @param bytes     $fdata      The bytes of the file to store in the SRR file.
  * @return TRUE when storing succeeds.
  */
-function storeFile($srr, $filePath, $fdata) {
+function storeFile($srrFile, $filePath, $fdata) {
     // check for illegal windows characters
     // the path separator must be /
     // twice (//) may not be possible
     if (fileNameCheck($filePath)) {
         return FALSE;
     }
-    // TODO: it is possible that you only have a path/
 
-    // don't let the same file get added twice
-    $result = processSrr($srr);
-    foreach($result['storedFiles'] as $key => $value) {
-        if($key === $filePath) {
-            return FALSE;
-        }
+    $fh = fopen($srrFile, 'c+b');
+    
+    if (flock($fh, LOCK_EX)) {
+    	$srr = processSrrHandle($fh);
+    	
+    	// don't let the same file get added twice
+    	foreach($srr['storedFiles'] as $key => $value) {
+    		if($key === $filePath) {
+    			flock($fh, LOCK_UN);
+    			fclose($fh);
+    			return FALSE;
+    		}
+    	}
+    
+    	$offset = newFileOffset($fh);
+    	if ($offset < 0) {
+    		// broken/empty .srr file due to bugs :(
+    		flock($fh, LOCK_UN);
+    		fclose($fh);
+    		return FALSE;
+    	}
+    	
+    	$after = fread($fh, $srr['srrSize']);
+    	$header = createStoredFileHeader($filePath, strlen($fdata));
+    	ftruncate($fh, $offset);
+    	fseek($fh, 0, SEEK_END); // Upon success, returns 0; otherwise, returns -1.
+    	fwrite($fh, $header);
+    	fwrite($fh, $fdata);
+    	fwrite($fh, $after);
+    
+    	flock($fh, LOCK_UN); // release the lock
     }
-
-    $offset = newFileOffset($srr);
-    if ($offset < 0) {
-        return FALSE;
-    }
-
-    $fh = fopen($srr, 'rb');
-    $before = fread($fh, $offset);
-    $after = fread($fh, getFileSize($srr));
-    fclose($fh);
-
-    $header = createStoredFileHeader($filePath, strlen($fdata));
-    file_put_contents($srr, $before . $header . $fdata . $after, LOCK_EX);
+    
+    fclose($fh); // close the file
     return TRUE;
 }
 
-function addOsoHash($srr, $oso_hash_data) {
-    // the hash must not already exist
-    $result = processSrr($srr);
-    foreach($result['osoHashes'] as $value) {
-        if ($value['data'] == $oso_hash_data) {
-            return FALSE;
-        }
+function addOsoHash($srrFile, $oso_hash_data) {
+    $fh = fopen($srrFile, 'c+b');
+    
+    if (flock($fh, LOCK_EX)) {
+    	$result = processSrrHandle($fh);
+    	
+	    // the hash must not already exist
+    	foreach($result['osoHashes'] as $value) {
+    		if ($value['data'] == $oso_hash_data) {
+    			flock($fh, LOCK_UN);
+    			fclose($fh);
+    			return FALSE;
+    		}
+    	}
+    	
+    	fseek($fh, 0, SEEK_END); // is not necessary
+    	fwrite($fh, $oso_hash_data);
+    
+    	flock($fh, LOCK_UN); // release the lock
     }
     
-    $orig_data = file_get_contents($srr);
-    file_put_contents($srr, $orig_data . $oso_hash_data, LOCK_EX);
+    fclose($fh); // close the file
+    return TRUE;
 }
 
 // /**
@@ -778,7 +788,7 @@ function addOsoHash($srr, $oso_hash_data) {
 //     }
     
 //     $fh = fopen($srr, 'rb');
-//     $before = fread($fh, getFileSize($srr));
+//     $before = fread($fh, getFileSizeHandle($fh));
 //     fclose($fh);
     
 //     // 2 byte CRC, 1 byte block type, 2 bytes for the flag 0x0000
@@ -813,70 +823,89 @@ function addOsoHash($srr, $oso_hash_data) {
 
 /**
  * Renames a stored file.
- * @param string $srr     The path of the SRR file.
+ * @param string $srrFile The path of the SRR file.
  * @param string $oldName The path and file name of a stored file.
  * @param string $newName The new path and file name of a stored file.
  * @return TRUE on success, FALSE otherwise.
  */
-function renameFile($srr, $oldName, $newName) {
+function renameFile($srrFile, $oldName, $newName) {
     if (fileNameCheck($newName)) {
-        print_r("The new file name is illegal. Use only forward slashes for paths.\n");
+    	if ($CLI_APP) {
+	        print_r("The new file name is illegal. Use only forward slashes for paths.\n");
+    	}
         return FALSE;
     }
-    $result = processSrr($srr);
-
-    // prevent renaming to a file that already exists
-    foreach ($result['storedFiles'] as $key => $value) {
-        if ($key === $newName) {
-            return FALSE;
-        }
+    
+    $result = FALSE;
+    $fh = fopen($srrFile, 'c+b');
+    
+    if (flock($fh, LOCK_EX)) {
+    	$srr = processSrrHandle($fh);
+    	
+    	// prevent renaming to a file that already exists
+    	foreach ($srr['storedFiles'] as $key => $value) {
+    		if ($key === $newName) {
+    			flock($fh, LOCK_UN);
+    			fclose($fh);
+    			return FALSE;
+    		}
+    	}
+    	 
+    	// rename the first file
+	    foreach ($srr['storedFiles'] as $key => $value) {
+	        if ($value['fileName'] === $oldName) {
+	            fseek($fh, $value['blockOffset'], SEEK_SET);
+	            $warnings_stub = array();
+	            $block = new Block($fh, $warnings_stub);
+	            $block->srrReadStoredFileHeader();
+	            fseek($fh, $value['blockOffset'] + $block->hsize, SEEK_SET);
+	            $after = fread($fh, $srr['srrSize']); // srrSize: the (max) amount to read
+	            ftruncate($fh, $value['blockOffset']);
+	            fseek($fh, 0, SEEK_END); // Upon success, returns 0; otherwise, returns -1.
+	            $changedHeader = createStoredFileHeader($newName, $block->addSize);
+	            fwrite($fh, $changedHeader);
+	            fwrite($fh, $after);
+			    $result = TRUE;
+	            break;
+	        }
+	    }
+	    
+    	flock($fh, LOCK_UN); // release the lock
     }
-
-    foreach ($result['storedFiles'] as $key => $value) {
-        if ($value['fileName'] === $oldName) {
-            $fh = fopen($srr, 'rb');
-            $before = fread($fh, $value['blockOffset']);
-            $warnings_stub = array();
-            $block = new Block($fh, $warnings_stub);
-            $block->srrReadStoredFileHeader();
-            fseek($fh, $value['blockOffset'] + $block->hsize, SEEK_SET);
-            $after = fread($fh, $result['srrSize']); // srrSize: the (max) amount to read
-            fclose($fh);
-
-            // allow an ending on / only for empty files -> srr crashes
-            if (substr($newName, - 1) === '/') { // && $block->addSize > 0) {
-                return FALSE;
-            }
-
-            $changedHeader = createStoredFileHeader($newName, $block->addSize);
-            file_put_contents($srr, $before . $changedHeader . $after, LOCK_EX);
-            return TRUE;
-        }
-    }
-    return FALSE;
+    
+    fclose($fh); // close the file
+    return $result;
 }
 
 /**
  * Calculate hash to identify SRRs that cover the same RAR volumes.
+ * The result can be wrong when the provided $rarFiles array is outdated.
  * @param string $srr The SRR file.
  * @param array $rarFiles The resulting array from processSrr().
  * @return Sha1 hash of the srr file
  */
-function calculateHash($srr, $rarFiles, $algorithm='sha1') {
+function calculateHash($srrfile, $rarFiles, $algorithm='sha1') {
     // do the calculation only on the sorted RAR volumes
     // this way it still yields the same result if the order of creation differs
     uasort($rarFiles, 'rarFileCmp'); // sort on filename without path, case insensitive
     // compared with pyReScene when capitals are used: same behavior
     // Parlamentet.S06E02.SWEDiSH-SQC
     $hashContext = hash_init($algorithm);
+	$fh = fopen($srrfile, 'rb');
+	
+	if (flock($fh, LOCK_SH)) {
+	    // calculate hash only on the RAR metadata
+	    foreach ($rarFiles as $key => $value) {
+	        $start = $value['offsetStartRar'];
+	        $end = $value['offsetEnd'];
+	        $data = stream_get_contents($fh, ($end - $start), $start);
+	        hash_update($hashContext, $data);
+	    }
 
-    // calculate hash only on the RAR metadata
-    foreach ($rarFiles as $key => $value) {
-        $start = $value['offsetStartRar'];
-        $end = $value['offsetEnd'];
-        $data = getStoredFileData($srr, $start, ($end - $start));
-        hash_update($hashContext, $data);
-    }
+		flock($fh, LOCK_UN); // release the lock
+	}
+	
+	fclose($fh); // close the file
     return hash_final($hashContext);
 }
 
@@ -891,15 +920,14 @@ function rarFileCmp($a, $b) {
 function calculateHashHandle($srrHandle, $rarFiles, $algorithm='sha1') {
     // do the calculation only on the sorted RAR volumes
     // this way it still yields the same result if the order of creation differs
-    asort($rarFiles); // Sort an array and maintain index association
+    uasort($rarFiles, 'rarFileCmp'); // sort on filename without path, case insensitive
     $hashContext = hash_init($algorithm);
 
     // calculate hash only on the RAR metadata
     foreach ($rarFiles as $key => $value) {
-        echo $key;
         $start = $value['offsetStartRar'];
         $end = $value['offsetEnd'];
-        $data = getStoredFileDataHandle($srrHandle, $start, ($end - $start));
+        $data = stream_get_contents($srrHandle, ($end - $start), $start);
         hash_update($hashContext, $data);
     }
     return hash_final($hashContext);
@@ -908,12 +936,11 @@ function calculateHashHandle($srrHandle, $rarFiles, $algorithm='sha1') {
 function calculateHashString($srrData, $rarFiles, $algorithm='sha1') {
     // do the calculation only on the sorted RAR volumes
     // this way it still yields the same result if the order of creation differs
-    asort($rarFiles);
+    uasort($rarFiles, 'rarFileCmp'); // sort on filename without path, case insensitive
     $hashContext = hash_init($algorithm);
 
     // calculate hash only on the RAR metadata
     foreach ($rarFiles as $key => $value) {
-        echo $key;
         $start = $value['offsetStartRar'];
         $end = $value['offsetEnd'];
 
@@ -923,40 +950,54 @@ function calculateHashString($srrData, $rarFiles, $algorithm='sha1') {
         rewind($fp);
         $fileAttributes = fstat($fp);
 
-        $data = getStoredFileDataHandle($fp, $start, ($end - $start));
+        $data = stream_get_contents($fp, ($end - $start), $start);
         hash_update($hashContext, $data);
     }
     return hash_final($hashContext);
 }
 
-
 /**
  * Compare 2 SRR files and list the differences.
- * @param $one First SRR file.
- * @param $two Second SRR file.
+ * @param $one First SRR file path.
+ * @param $two Second SRR file path.
  * @return Some complicated array with differences.
  */
 function compareSrr($one, $two) {
-    $rone = processSrr($one);
-    $rtwo = processSrr($two);
-    return compareSrrRaw($rone, $rtwo, $one, $two);
+	$result = FALSE;
+	$fho = fopen($one, 'rb');
+	$fht = fopen($two, 'rb');
+	
+	if (flock($fho, LOCK_SH) && flock($fht, LOCK_SH)) {
+	    $rone = processSrrHandle($fho);
+	    $rtwo = processSrrHandle($fht);
+	    
+	    $result = compareSrrRaw($rone, $rtwo, $fho, $fht);
+    
+		flock($fho, LOCK_UN); // release the lock
+		flock($fht, LOCK_UN);
+	}
+	
+	fclose($fho); // close the files
+	fclose($fht); 
+	
+	return $result;
 }
 
 /**
  * Same as above, but the info arrays of the SRR files were read before.
  * 2 times less parsing of the SRR files.
  */
-function compareSrrRaw($rone, $rtwo, $one, $two) {
-    $hashOne = calculateHash($one, $rone['rarFiles']);
-    $hashTwo = calculateHash($two, $rtwo['rarFiles']);
+function compareSrrRaw($rone, $rtwo, $fhone, $fhtwo) {
+    $hashOne = calculateHashHandle($fhone, $rone['rarFiles']);
+    $hashTwo = calculateHashHandle($fhtwo, $rtwo['rarFiles']);
 
     // ----- The RARs -----
     // rebuild data can be considered the same?
     $sameRarData = $hashOne === $hashTwo;
 
     // hash => file name
-    $hashesOne = hashParts($one, $rone['rarFiles']);
-    $hashesTwo = hashParts($two, $rtwo['rarFiles']);
+    $hashesOne = hashParts($fhone, $rone['rarFiles']);
+    $hashesTwo = hashParts($fhtwo, $rtwo['rarFiles']);
 
     // hash => file name (of those names unique to the first array)
     $left = array_diff($hashesOne, $hashesTwo);
@@ -1014,8 +1055,8 @@ function compareSrrRaw($rone, $rtwo, $one, $two) {
     // Returns an array containing all the values from array1 that are not present in any of the other arrays.
     $filesOne = array_diff_assoc($filesOne, $oneNfo);
     $filesTwo = array_diff_assoc($filesTwo, $twoNfo);
-    $oneNfo = addNfoHash($oneNfo, $one);
-    $twoNfo = addNfoHash($twoNfo, $two);
+    $oneNfo = addNfoHash($oneNfo, $fhone);
+    $twoNfo = addNfoHash($twoNfo, $fhtwo);
 
     foreach ($oneNfo as $okey => $ovalue) {
         foreach ($twoNfo as $tkey => $tvalue) {
@@ -1050,8 +1091,8 @@ function compareSrrRaw($rone, $rtwo, $one, $two) {
     // do not process these files again
     $filesOne = array_diff_assoc($filesOne, $oneSfv);
     $filesTwo = array_diff_assoc($filesTwo, $twoSfv);
-    $oneSfv = addSfvInfo($oneSfv, $one);
-    $twoSfv = addSfvInfo($twoSfv, $two);
+    $oneSfv = addSfvInfo($oneSfv, $fhone);
+    $twoSfv = addSfvInfo($twoSfv, $fhtwo);
 
     foreach ($oneSfv as $okey => $ovalue) {
         foreach ($twoSfv as $tkey => $tvalue) {
@@ -1089,8 +1130,8 @@ function compareSrrRaw($rone, $rtwo, $one, $two) {
     // do not process these files again
     $filesOne = array_diff_assoc($filesOne, $oneSrs);
     $filesTwo = array_diff_assoc($filesTwo, $twoSrs);
-    $oneSrs = addSrsInfo($oneSrs, $one);
-    $twoSrs = addSrsInfo($twoSrs, $two);
+    $oneSrs = addSrsInfo($oneSrs, $fhone);
+    $twoSrs = addSrsInfo($twoSrs, $fhtwo);
 
     //print_r($oneSrs);
     //print_r($twoSrs);
@@ -1183,10 +1224,10 @@ function getFilesByExt($fileList, $extension) {
     return $result;
 }
 
-function addNfoHash($list, $srrFile) {
+function addNfoHash($list, $fileHandle) {
     foreach($list as $key => $value) {
         // store nfo hash next to the other stored file data
-        $nfoData = getStoredFileData($srrFile, $value['fileOffset'], $value['fileSize']);
+        $nfoData = stream_get_contents($fileHandle, $value['fileSize'], $value['fileOffset']);
         $list[$key]['hash'] = nfoHash($nfoData);
         // check for which nfo has the fewest lines -> probably no unnessesary white lines
         // Indiana.Jones.And.The.Last.Crusade.1989.PAL.DVDR-DNA
@@ -1195,18 +1236,18 @@ function addNfoHash($list, $srrFile) {
     return $list;
 }
 
-function addSfvInfo($list, $srrFile) {
+function addSfvInfo($list, $fileHandle) {
     foreach($list as $key => $value) {
-        $result = processSfv(getStoredFileData($srrFile, $value['fileOffset'], $value['fileSize']));
+        $result = processSfv(stream_get_contents($fileHandle, $value['fileSize']), $value['fileOffset']);
         $list[$key]['comments'] = $result['comments'];
         $list[$key]['files'] = $result['files'];
     }
     return $list;
 }
 
-function addSrsInfo($list, $srrFile) {
+function addSrsInfo($list, $fileHandle) {
     foreach($list as $key => $value) {
-        $result = processSrsData(getStoredFileData($srrFile, $value['fileOffset'], $value['fileSize']));
+        $result = processSrsData(stream_get_contents($fileHandle, $value['fileSize'], $value['fileOffset']));
         //print_r($result);
         $list[$key] += $result;
     }
@@ -1286,56 +1327,73 @@ function processSrsHandle($fileHandle, $srsSize) {
 }
 
 /**
- * Sorts the stored files in $srr according to $sortedFileNameList.
- * @param string $srr: path to the SRR file
+ * Sorts the stored files in $srrFile according to $sortedFileNameList.
+ * @param string $srrFile: path to the SRR file
  * @param array $sortedFileNameList: simple array with file names
  * @return bool success status
  */
-function sortStoredFiles($srr, $sortedFileNameList) {
-    $srrInfo = processSrr($srr);
-    if (count($srrInfo['storedFiles']) != count($sortedFileNameList)) {
-        // not the same amount of elements: bad input
-        return FALSE;
-    }
-    
-    $before = $srrInfo['srrSize'];
-    $after = 0;
-    // check if each name is the same in both lists
-    foreach ($srrInfo['storedFiles'] as $key => $value) {
-        if (array_search($key, $sortedFileNameList) === FALSE) {
-            return FALSE;
-        }
-        
-        // offsets where the stored files start and end
-        if ($value['blockOffset'] < $before) {
-            $before = $value['blockOffset'];
-        }
-        $offset = $value['fileOffset'] + $value['fileSize'];
-        if ($offset > $after) {
-            $after = $offset;
-        }
-    }
-    
-    $fh = fopen($srr, 'rb');
-    $beforeData = fread($fh, $before);
-    fseek($fh, $after, SEEK_SET);
-    $afterData = fread($fh, $srrInfo['srrSize']); // srrSize: the (max) amount to read
-    
-    // sort the files and grab their blocks
-    $between = ''; 
-    foreach ($sortedFileNameList as $key) {
-        $bo = $srrInfo['storedFiles'][$key]['blockOffset'];
-        $fo = $srrInfo['storedFiles'][$key]['fileOffset'];
-        $fs = $srrInfo['storedFiles'][$key]['fileSize'];
-        $blockSize = ($fo + $fs) - $bo;
-        fseek($fh, $bo, SEEK_SET);
-        $between .= fread($fh, $blockSize);
-    }
-    fclose($fh);
-    $amount = file_put_contents($srr, $beforeData . $between . $afterData, LOCK_EX);
-    assert($amount === $srrInfo['srrSize']);
-    
-    return TRUE;
+function sortStoredFiles($srrFile, $sortedFileNameList) {
+	$fh = fopen($srrFile, 'c+b');
+	
+	if (flock($fh, LOCK_EX)) {
+		$srrInfo = processSrrHandle($fh);
+
+		// not the same amount of elements: bad input
+		if (count($srrInfo['storedFiles']) != count($sortedFileNameList)) {
+			flock($fh, LOCK_UN);
+			fclose($fh);
+			return FALSE;
+		}
+		
+		$before = $srrInfo['srrSize'];
+		$after = 0;
+		// check if each name is the same in both lists
+		foreach ($srrInfo['storedFiles'] as $key => $value) {
+			if (array_search($key, $sortedFileNameList) === FALSE) {
+				flock($fh, LOCK_UN);
+				fclose($fh);
+				return FALSE;
+			}
+		
+			// offsets where the stored files start and end
+			if ($value['blockOffset'] < $before) {
+				$before = $value['blockOffset'];
+			}
+			$offset = $value['fileOffset'] + $value['fileSize'];
+			if ($offset > $after) {
+				$after = $offset;
+			}
+		}
+		
+		fseek($fh, 0, SEEK_SET);
+		$beforeData = fread($fh, $before);
+		fseek($fh, $after, SEEK_SET);
+		$afterData = fread($fh, $srrInfo['srrSize']); // srrSize: the (max) amount to read
+		
+		// sort the files and grab their blocks
+		$between = '';
+		foreach ($sortedFileNameList as $key) {
+			$bo = $srrInfo['storedFiles'][$key]['blockOffset'];
+			$fo = $srrInfo['storedFiles'][$key]['fileOffset'];
+			$fs = $srrInfo['storedFiles'][$key]['fileSize'];
+			$blockSize = ($fo + $fs) - $bo;
+			fseek($fh, $bo, SEEK_SET);
+			$between .= fread($fh, $blockSize);
+		}
+		
+		$bytesWritten = 0;
+		fseek($fh, 0, SEEK_SET);
+		$bytesWritten += fwrite($fh, $beforeData);
+		$bytesWritten += fwrite($fh, $between);
+		$bytesWritten += fwrite($fh, $afterData);
+	
+		flock($fh, LOCK_UN); // release the lock
+		fclose($fh); // close the file
+		return assert($bytesWritten === $srrInfo['srrSize']);
+	}
+	
+	fclose($fh); // close the file
+	return TRUE;
 }
 
 /**
@@ -1347,41 +1405,52 @@ function sortStoredFiles($srr, $sortedFileNameList) {
  * @return string
  */
 function grabSrrSubset($srrFile, $volume, $applicationName = 'rescene.php partial SRR file') {
-    $srrInfo = processSrr($srrFile);
-    $volume = strtolower($volume);
-    
-    // 1) construct SRR file header
-    $result =  createSrrHeaderBlock($applicationName);
-
-    // 2) add the right SFV file
-    foreach ($srrInfo['storedFiles'] as $key => $value) {
-		if (strtolower(substr($key, -4)) === '.sfv' &&
-			strtolower($value['basenameVolume']) === $volume) {
-			$length = $value['fileSize'] + ($value['fileOffset'] - $value['blockOffset']);
-			$result .= getStoredFileData($srrFile, $value['blockOffset'], $length);
+	$result = '';
+	$fh = fopen($srrFile, 'rb');
+	
+	if (flock($fh, LOCK_SH)) {
+		$srrInfo = processSrrHandle($fh);
+		$volume = strtolower($volume);
+		
+		// 1) construct SRR file header
+		$result = createSrrHeaderBlock($applicationName);
+		
+		// 2) add the right SFV file
+		foreach ($srrInfo['storedFiles'] as $key => $value) {
+			if (strtolower(substr($key, -4)) === '.sfv' &&
+					strtolower($value['basenameVolume']) === $volume) {
+				$length = $value['fileSize'] + ($value['fileOffset'] - $value['blockOffset']);
+				$result .= stream_get_contents($fh, $length, $value['blockOffset']);
+			}
 		}
-    }
-    
-    // 3) add the right RAR meta data
-    foreach ($srrInfo['rarFiles'] as $key => $value) {
-    	if (strtolower($value['basenameVolume']) === $volume) {
-    		$length = $value['offsetEnd'] - $value['offsetStartSrr'];
-    		$result .= getStoredFileData($srrFile, $value['offsetStartSrr'], $length);
-    	}
-    }
-    
-    // 4) ignore everything else
-
-    return $result;
+		
+		// 3) add the right RAR meta data
+		foreach ($srrInfo['rarFiles'] as $key => $value) {
+			if (strtolower($value['basenameVolume']) === $volume) {
+				$length = $value['offsetEnd'] - $value['offsetStartSrr'];
+				$result .= stream_get_contents($fh, $length, $value['offsetStartSrr']);
+			}
+		}
+		
+		// 4) ignore everything else
+		
+		flock($fh, LOCK_UN); // release the lock
+	}
+	
+	fclose($fh); // close the file
+	return $result;
 }
 
 // Private helper functions -------------------------------------------------------------------------------------------
 
-function getFileSize($file) {
-    $fh = fopen($file, 'rb');
+/**
+ * No locking occurs.
+ * @param unknown_type $fileHandle
+ * @return integer The size of the file.
+ */
+function getFileSizeHandle($fileHandle) {
     // PHP uses caching for filesize() and we do not always want that!
-    $stat = fstat($fh);
-    fclose($fh);
+    $stat = fstat($fileHandle);
     return $stat['size'];
 }
 
@@ -1444,9 +1513,10 @@ function createSrrHeaderBlockTest() {
  * The string cannot start with a /.
  * The string must contain at least one character.
  * The string cannot start or end with a space.
+ * The string cannot end with a slash.
  */
 function fileNameCheck($path) {
-    return preg_match('/([\\\\:*?"<>|]|\/\/)|^\/|^$|^ .*|^.* $/', $path);
+    return preg_match('/([\\\\:*?"<>|]|\/\/)|.*\/$|^\/|^$|^ .*|^.* $/', $path);
 }
 
 function fileNameCheckTest() {
@@ -1463,6 +1533,8 @@ function fileNameCheckTest() {
             fileNameCheck('dir\\\\file.ext') &&
             fileNameCheck('/dir/file.ext') &&
             fileNameCheck('') &&
+            fileNameCheck('something\\') &&
+            fileNameCheck('something/') &&
             fileNameCheck('dir\\file.ext') &&
             fileNameCheck(' dir/file.ext') &&
             fileNameCheck('dir/file.ext '));
@@ -1470,15 +1542,15 @@ function fileNameCheckTest() {
 
 /**
  * Hash all RAR metadata parts of a SRR file.
- * @param $srr The SRR file.
+ * @param $fileHandle The SRR file handle.
  * @param $rarFiles Subarray result from processSrr().
  */
-function hashParts($srr, $rarFiles) {
+function hashParts($fileHandle , $rarFiles) {
     $hashes = array();
     foreach($rarFiles as $key => $value) {
         $start = $value['offsetStartRar'];
         $end = $value['offsetEnd'];
-        $hash = sha1(getStoredFileData($srr, $start, ($end - $start)));
+        $hash = sha1(stream_get_contents($fileHandle, ($end - $start), $start));
         $hashes[$hash] = $value['fileName'];
     }
     return $hashes;
@@ -1501,22 +1573,21 @@ function createStoredFileHeader($name, $fileSize) {
 /**
  * We choose the offset to insert a new file to be after the SRR Header Block
  * to keep all files always at the front and to anticipate new SRR blocks.
- * @param string $srr   The path of the SRR file to open.
+ * Pointer will be at the position of the return int.
+ * @param $fileHandle   File handle to the SRR file.
  */
-function newFileOffset($srr) {
-    $fh = fopen($srr, 'rb');
-    // read SRR Header Block
-    $warnings_stub = array();
-    $block = new Block($fh, $warnings_stub);
-    if ($block->blockType === 0x69) {
-        $block->readSrrAppName();
-    } else {
-        return -1;
-    }
-
-    $offset = ftell($fh);
-    fclose($fh);
-    return $offset;
+function newFileOffset($fileHandle) {
+	fseek($fileHandle, 0, SEEK_SET);
+	// read SRR Header Block
+	$warnings_stub = array();
+	$block = new Block($fileHandle, $warnings_stub);
+	if ($block->blockType === 0x69) {
+		$block->readSrrAppName();
+	} else {
+		return -1;
+	}
+	$offset = ftell($fileHandle);
+	return $offset;
 }
 
 /**
