@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2015-06-06
+ * Last version: 2015-08-04
  *
  * Features:
  *	- process a SRR file which returns:
@@ -404,6 +404,7 @@ function processSrrHandle($fileHandle) {
 				// The same file can be stored multiple times.
 				// This can make SRR files unnoticeably large.
 				if (array_key_exists($block->fileName, $stored_files)) {
+					// message here must start with Duplicate for the check in sorting
 					array_push($warnings, "Duplicate file detected! {$sf['fileName']}");
 				}
 				if (preg_match('/\\\\/', $block->fileName)) {
@@ -1339,7 +1340,8 @@ function sortStoredFiles($srrFile, $sortedFileNameList) {
 		$srrInfo = processSrrHandle($fh);
 
 		// not the same amount of elements: bad input
-		if (count($srrInfo['storedFiles']) != count($sortedFileNameList)) {
+		if (count($srrInfo['storedFiles']) != count($sortedFileNameList) ||
+			count(preg_grep("/^Duplicate/", $srrInfo['warnings'])) > 0) {
 			flock($fh, LOCK_UN);
 			fclose($fh);
 			return FALSE;
