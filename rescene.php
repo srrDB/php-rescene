@@ -464,7 +464,8 @@ function processSrrHandle($fileHandle) {
 					// useful for actually comparing srr data
 					$f['offsetStartSrr'] = $block->startOffset; // where the SRR block begins
 					$f['offsetStartRar'] = ftell($fh); // where the actual RAR headers begin
-					// $f['basenameVolume'] set later when volume header is available
+					// initialize, set later when volume header is available
+					$f['basenameVolume'] = '';
 				}
 
 				$rar_files[$key] = $f;
