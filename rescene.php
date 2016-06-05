@@ -481,14 +481,44 @@ function processSrrHandle($fileHandle) {
 				} else { // new file found in the archives
 					$f = array();
 					$f['fileName'] = $block->fileName;
-					$f['fileSize'] = $block->fileSize;
 					$f['fileTime'] = date("Y-m-d h:i:s", $block->fileTime);
 					$f['compressionMethod'] = $block->compressionMethod;
+
+					// file size complexity because of crappy custom packers
+					if ($block->fileSize !== 0xffffffffffffffff &&  // 1
+						$block->fileSize !== -1 && /* 2) 32 bit php */
+						$block->fileSize !== 0xffffffff /* 2) 64 bit php */) {
+						// file size normal case
+						$f['fileSize'] = $block->fileSize;
+					} else {
+						$f['fileSize'] = 0;
+						// 1) custom RAR packers used: last RAR contains the size
+						// Street.Fighter.V-RELOADED or Magic.Flute-HI2U or 0x0007
+						if ($block->fileSize == 0xffffffffffffffff) {
+							array_push($warnings, "RELOADED/HI2U/0x0007 custom packer detected.");
+						}
+						// 2) crap group that doesn't store the correct size at all:
+						// The.Powerpuff.Girls.2016.S01E08.HDTV.x264-QCF							
+						if ($block->fileSize == 0xffffffff || $block->fileSize == -1) {
+							array_push($warnings, "Crappy QCF packer detected.");
+						}
+					}
 				}
 
 				// check if compression was used
 				if ($f['compressionMethod'] != 0x30) { // 0x30: Storing
 					$compressed = TRUE;
+				}
+				
+				// file size counting fixes
+				// 2) above int was correct? it must match at the end - QCF
+				if (($block->fileSize == -1 || $block->fileSize == 0xffffffff) && !$compressed) {
+					$f['fileSize'] += $block->addSize;
+				}
+
+				// 1) expected the last RAR (first with the proper value)
+				if ($block->fileSize !== 0xffffffffffffffff && $f['fileSize'] == 0) {
+					$f['fileSize'] = $block->fileSize;
 				}
 
 				// CRC of the file is the CRC stored in the last archive that has the file
