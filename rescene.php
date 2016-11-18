@@ -1270,7 +1270,7 @@ function addNfoHash($list, $fileHandle) {
 
 function addSfvInfo($list, $fileHandle) {
 	foreach($list as $key => $value) {
-		$result = processSfv(stream_get_contents($fileHandle, $value['fileSize']), $value['fileOffset']);
+		$result = processSfv(stream_get_contents($fileHandle, $value['fileSize'], $value['fileOffset']));
 		$list[$key]['comments'] = $result['comments'];
 		$list[$key]['files'] = $result['files'];
 	}
