@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2015-08-04
+ * Last version: 2017-01-16
  *
  * Features:
  *	- process a SRR file which returns:
@@ -349,6 +349,7 @@ function processSrrHandle($fileHandle) {
 	$sfv['files'] = array();
 	$warnings = array();
 	$compressed = FALSE; // it's an SRR file for compressed RARs
+	$encrypted = FALSE; // encryption is used on one or more files
 
 	// other initializations
 	$read = 0; // number of bytes we have read so far
@@ -525,6 +526,12 @@ function processSrrHandle($fileHandle) {
 				// add leading zeros when the CRC isn't 8 characters
 				$f['fileCrc'] = strtoupper(str_pad($block->fileCrc, 8, '0', STR_PAD_LEFT));
 				$archived_files[$block->fileName] = $f;
+				
+				// file is encrypted with password
+				// The.Sims.4.City.Living.INTERNAL-RELOADED
+				if ($block->flags & 0x4) {
+					$encrypted = TRUE;
+				}
 				break;
 			case 0x78: // RAR Old Recovery
 				if (is_null($recovery)) {
@@ -564,6 +571,11 @@ function processSrrHandle($fileHandle) {
 				}
 				$is_new_style_naming = $block->flags & 0x0010 && $block->flags & 0x0001; // new numbering and a volume
 				$current_rar['basenameVolume'] = getBasenameVolume($current_rar['fileName'], $is_new_style_naming);
+
+				// encrypted block headers are used: these SRRs don't exist
+				if ($block->flags & 0x0080) {
+					$encrypted = TRUE;
+				}
 			case 0x72: // RAR Marker
 			case 0x7B: // RAR Archive End
 			case 0x75: // Old Comment
@@ -633,6 +645,7 @@ function processSrrHandle($fileHandle) {
 			'sfv' => $sfv, // comments and files that aren't covered by the SRR
 			'warnings' => $warnings, // when something unusual is found
 			'compressed' => $compressed,
+			'encrypted' => $encrypted
 	);
 }
 
