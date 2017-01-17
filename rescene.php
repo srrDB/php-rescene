@@ -355,6 +355,7 @@ function processSrrHandle($fileHandle) {
 	$read = 0; // number of bytes we have read so far
 	$last_read = 0; // to prevent looping on encountering bad data
 	$current_rar = NULL;
+	$customPacker = FALSE; // when not created with WinRAR
 
 	while($read < $srrSize) {
 		$add_size = TRUE;
@@ -479,11 +480,16 @@ function processSrrHandle($fileHandle) {
 
 				if (array_key_exists($block->fileName, $archived_files)) {
 					$f = $archived_files[$block->fileName];
+					// FLEET, AVS,... (first and last rar have correct size)
+					if ($f['fileSizeStart'] !== $block->fileSize) {
+						$customPacker = TRUE;
+					}
 				} else { // new file found in the archives
 					$f = array();
 					$f['fileName'] = $block->fileName;
 					$f['fileTime'] = date("Y-m-d h:i:s", $block->fileTime);
 					$f['compressionMethod'] = $block->compressionMethod;
+					$f['fileSizeStart'] = $block->fileSize;
 
 					// file size complexity because of crappy custom packers
 					if ($block->fileSize !== 0xffffffffffffffff &&  // 1
@@ -496,12 +502,12 @@ function processSrrHandle($fileHandle) {
 						// 1) custom RAR packers used: last RAR contains the size
 						// Street.Fighter.V-RELOADED or Magic.Flute-HI2U or 0x0007
 						if ($block->fileSize == 0xffffffffffffffff) {
-							array_push($warnings, "RELOADED/HI2U/0x0007 custom packer detected.");
+							array_push($warnings, "RELOADED/HI2U/0x0007 custom RAR packer detected.");
 						}
 						// 2) crap group that doesn't store the correct size at all:
 						// The.Powerpuff.Girls.2016.S01E08.HDTV.x264-QCF							
 						if ($block->fileSize == 0xffffffff || $block->fileSize == -1) {
-							array_push($warnings, "Crappy QCF packer detected.");
+							array_push($warnings, "Crappy QCF RAR packer detected.");
 						}
 					}
 				}
@@ -627,6 +633,10 @@ function processSrrHandle($fileHandle) {
 			// everything that stays can not be reconstructed (subs from .sfv files)
 			unset($sfv['files'][$key]); // remove data from $sfv
 		}
+	}
+	
+	if ($customPacker) {
+		array_push($warnings, 'Custom RAR packer detected.');
 	}
 
 	// return all info in a multi dimensional array
