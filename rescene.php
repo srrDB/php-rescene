@@ -297,18 +297,22 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
 /**
  * Processes a whole SRR file and returns an array with useful details.
  * @param string $file location to the file that needs to be read.
+ * @return	mixed  data array, or false on failure
  */
 function processSrr($file) {
-	$fh = fopen($file, 'rb');
-	
-	if (flock($fh, LOCK_SH)) {
-		$result = processSrrHandle($fh);
-		flock($fh, LOCK_UN); // release the lock
-	} else {
-		$result = FALSE;
+	$result = FALSE;
+
+	if(file_exists($file)) {
+		$fh = fopen($file, 'rb');
+
+		if (flock($fh, LOCK_SH)) {
+			$result = processSrrHandle($fh);
+			flock($fh, LOCK_UN); // release the lock
+		}
+
+		fclose($fh); // close the file
 	}
-	
-	fclose($fh); // close the file
+
 	return $result;
 }
 
