@@ -2153,7 +2153,16 @@ function parse_srs_mp3($fh, $srsSize) {
 	// => so skip the ID3 tag
 	if (substr($data, 0, 3) === 'ID3') {
 		$tagLen = calcDecTagLen(substr($data, 6, 4));
-		$data = substr($data, 10 + $tagLen);
+		// srrDB Issue #70 (angelmoon)-hes_all_i_want_cd_pg2k-bmi
+		if($tagLen > $srsSize) {
+			$next = strpos($data, 'ID3', 10);
+			if($next < $srsSize) {
+				$tagLen = calcDecTagLen(substr($data, $next + 6, 4));
+				$data = substr($data, $next + 10 + $tagLen);
+			}
+		} else {
+			$data = substr($data, 10 + $tagLen);
+		}
 	}
 	
 	$f = strpos($data, 'SRSF'); // file
