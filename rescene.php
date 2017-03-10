@@ -113,6 +113,8 @@ class FileType {
 	const WMV = 'WMV';
 	const FLAC = 'FLAC';
 	const MP3 = 'MP3';
+	const STREAM = 'STRM'; // vob and basic m2ts
+	const M2TS = 'M2TS';
 	const Unknown = '';
 }
 
@@ -1375,6 +1377,9 @@ function processSrsHandle($fileHandle, $srsSize) {
 		case FileType::MP3:
 			$result = parse_srs_mp3($fileHandle, $srsSize);
 			break;
+		case FileType::STREAM:
+			$result = parse_srs_stream($fileHandle, $srsSize);
+			break;
 		default:
 			global $CLI_APP;
 			if ($CLI_APP) { // don't show the message when used as library
@@ -1937,6 +1942,9 @@ function detectFileFormat($fileHandle) {
 		case '53525346': // SRSF
 			$ft = FileType::MP3;
 			break;
+		case '5354524D': // STRM
+			$ft = FileType::STREAM;
+			break;
 		default:
 			if ('66747970' ===	bin2hex(fread($fileHandle, 4))) { // next 4 bytes
 				$ft = FileType::MP4;
@@ -2167,6 +2175,35 @@ function parse_srs_mp3($fh, $srsSize) {
 	
 	return $result;
 }	
+
+function parse_srs_stream($fh, $srsSize) {
+	$result = array();
+	$result['trackData'] = array();
+	
+	$startPos = 0;
+	fseek($fh, $startPos);
+	
+	while ($startPos < $srsSize) {
+		if ($startPos + 8 > $srsSize) {
+			break; // SRS file too small
+		}
+
+		// read header
+		$marker = fread($fh, 4);
+		$blockSize = unpack('Vsize', fread($fh, 4))['size'];
+
+		if ($marker === 'SRSF') {
+			$result['fileData'] = new FileData(fread($fh, $blockSize));
+		} elseif ($marker === 'SRST') {
+			$track = new TrackData(fread($fh, $blockSize));
+			$result['trackData'][$track->trackNumber] = $track;
+		}
+	
+		$startPos = $startPos + (8 + $blockSize);
+	}
+	
+	return $result;
+}
 
 class FileData {
 	public function __construct($data) {
