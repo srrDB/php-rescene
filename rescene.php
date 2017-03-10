@@ -226,7 +226,8 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
 			echo calculateHash($srr, $result['rarFiles']);
 		} elseif ($switch === '-a') {
 			// show SRS info
-			print_r(processSrsData(file_get_contents($srr)));
+			$srsData = file_get_contents($srr);
+			print_r(processSrsData($srsData));
 		} elseif ($switch === '-t') {
 			echo 'fileNameCheckTest: ';
 			if (fileNameCheckTest()) {
