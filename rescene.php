@@ -1,7 +1,7 @@
 <?php 
 /**
  * PHP Library to read and edit a .srr file. It reads .srs files.
- * Copyright (c) 2011-2015 Gfy
+ * Copyright (c) 2011-2017 Gfy
  *
  * rescene.php is free software, you can redistribute it and/or modify
  * it under the terms of GNU Affero General Public License
@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2017-01-16
+ * Last version: 2017-03-10
  *
  * Features:
  *	- process a SRR file which returns:
