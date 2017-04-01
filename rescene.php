@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2017-03-10
+ * Last version: 2017-04-01
  *
  * Features:
  *	- process a SRR file which returns:
@@ -2202,13 +2202,13 @@ function parse_srs_stream($fh, $srsSize) {
 		$blockSize = unpack('Vsize', fread($fh, 4))['size'];
 
 		if ($marker === 'SRSF') {
-			$result['fileData'] = new FileData(fread($fh, $blockSize));
+			$result['fileData'] = new FileData(fread($fh, $blockSize - 8));
 		} elseif ($marker === 'SRST') {
-			$track = new TrackData(fread($fh, $blockSize));
+			$track = new TrackData(fread($fh, $blockSize - 8));
 			$result['trackData'][$track->trackNumber] = $track;
 		}
 	
-		$startPos = $startPos + (8 + $blockSize);
+		$startPos += $blockSize;
 	}
 	
 	return $result;
