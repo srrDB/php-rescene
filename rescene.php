@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2017-04-01
+ * Last version: 2017-07-09
  *
  * Features:
  *	- process a SRR file which returns:
@@ -149,6 +149,7 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
 		echo "  -p 'file to split' (sPlit)\n";
 		echo "  -h 'special hash of the SRR file' (Hash)\n";
 		echo "  -a 'show SRS info (sAmple)\n";
+		echo "  -l 'show stored SRR languages (Languages)\n";
 		echo "  -c 'compare two SRR files' (Compare)\n";
 		echo "  -t 'runs a couple of small tests' (Testing)\n";
 		exit(1);
@@ -230,6 +231,9 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
 			// show SRS info
 			$srsData = file_get_contents($srr);
 			print_r(processSrsData($srsData));
+		} elseif ($switch === '-l') {
+			// show vobsub languages
+			print_r(getVobsubLanguages($srr));
 		} elseif ($switch === '-t') {
 			echo 'fileNameCheckTest: ';
 			if (fileNameCheckTest()) {
@@ -1507,7 +1511,69 @@ function grabSrrSubset($srrFile, $volume, $applicationName = 'rescene.php partia
 	return $result;
 }
 
+/**
+ * Retrieve and parse the vobsubs languages
+ * @param string $srrFile
+ * @param array $srrInfo
+ * @return array with languages structure
+ */
+function getVobsubLanguages($srrFile, $srrInfo = null) {
+	$languages = array();
+	$fh = fopen($srrFile, 'rb');
+
+	if (flock($fh, LOCK_SH)) {
+		// avoid parsing SRR again when parameter is provided
+		if ($srrInfo === null) {
+			$srrInfo = processSrrHandle($fh);
+		}
+
+		// get a list of all stored .srr files with languages.diz in them
+		$dizFiles = array();
+		foreach ($srrInfo['storedFiles'] as $key => $value) {
+			if (substr($key, -4) === '.srr') {
+				$storedSrr = stream_get_contents($fh, $value['fileSize'], $value['fileOffset']);
+				if (strpos($storedSrr, 'languages.diz') !== FALSE) {
+					$vobsubSrr = processSrrData($storedSrr);
+					$lv = $vobsubSrr['storedFiles']['languages.diz']; // can fail in theory
+					$dizFiles[$key] = substr($storedSrr, $lv['fileOffset'], $lv['fileSize']);
+				}
+			}
+		}
+
+		flock($fh, LOCK_UN); // release the lock
+
+		foreach ($dizFiles as $srrVobsubName => $dizData) {
+			$languages[$srrVobsubName] = parseLanguagesDiz($dizData);
+		}
+	}
+
+	fclose($fh); // close the file
+	return $languages;
+}
+
 // Private helper functions -------------------------------------------------------------------------------------------
+
+function parseLanguagesDiz($data) {
+	$idx = array();
+	$lastFileName = 'NO IDX FILE NAME DETECTED';
+
+	$lines = preg_split('/$\R?^/m', $data); // early .srr files are not just \n
+	foreach ($lines as $line) {
+		if (substr($line, 0, 1) === '#') {
+			// new idx file
+			$lastFileName = substr($line, 2);
+			$idx[$lastFileName] = array();
+		} else {
+			// new language line
+			preg_match('/id: ([a-z]{2}).*?,.*/i', $line, $matches);
+			if ($matches) { // '--' gets skipped e.g. Zero.Days.2016.PROPER.DVDRip.x264-WiDE
+				array_push($idx[$lastFileName], $matches[1]);
+			}
+		}
+	}
+
+	return $idx;
+}
 
 /**
  * No locking occurs.
