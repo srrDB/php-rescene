@@ -325,7 +325,7 @@ function processSrr($file) {
 
 /**
  * Processes a whole SRR file and returns an array with useful details.
- * @param bytes $srrFileData the contents of the SRR file.
+ * @param resource $srrFileData the contents of the SRR file.
  */
 function processSrrData(&$srrFileData) {
 	// http://www.php.net/manual/en/wrappers.php.php
@@ -672,9 +672,9 @@ function processSrrHandle($fileHandle) {
 
 /**
  * Same as the getStoredFileData() function, but based on the file name.
- * @param $srrfile	The name of the SRR file to read.
- * @param $filename The file we want the contents from, including the path.
- * @return The bytes of the file or FALSE on failure.
+ * @param string $srrfile	The name of the SRR file to read.
+ * @param string $filename	The file we want the contents from, including the path.
+ * @return resource The bytes of the file or FALSE on failure.
  */
 function getStoredFile($srrfile, $filename) {
 	$result = FALSE;
@@ -737,7 +737,7 @@ function removeFile($srrfile, $filename) {
  * Adds a file to the saved files inside a SRR file.
  * @param string	$srr	The path of the SRR file.
  * @param string	$file	The file to store.
- * @param bytes		$path	The path that must be prefixed for the file name.
+ * @param resource	$path	The path that must be prefixed for the file name.
  * @return TRUE on success, FALSE otherwise.
  */
 function storeFileCli($srr, $file, $path='') {
@@ -753,7 +753,7 @@ function storeFileCli($srr, $file, $path='') {
  * Adds a file to the saved files inside a SRR file.
  * @param string	$srrFile	The path of the SRR file.
  * @param string	$filePath	The path and name that will be stored.
- * @param bytes		$fdata		The bytes of the file to store in the SRR file.
+ * @param resource	$fdata		The bytes of the file to store in the SRR file.
  * @return TRUE when storing succeeds.
  */
 function storeFile($srrFile, $filePath, $fdata) {
@@ -948,7 +948,7 @@ function renameFile($srrFile, $oldName, $newName) {
  * The result can be wrong when the provided $rarFiles array is outdated.
  * @param string $srr The SRR file.
  * @param array $rarFiles The resulting array from processSrr().
- * @return Sha1 hash of the srr file
+ * @return string Sha1 hash of the srr file
  */
 function calculateHash($srrfile, $rarFiles, $algorithm='sha1') {
 	// do the calculation only on the sorted RAR volumes
@@ -1024,9 +1024,9 @@ function calculateHashString($srrData, $rarFiles, $algorithm='sha1') {
 
 /**
  * Compare 2 SRR files and list the differences.
- * @param $one First SRR file path.
- * @param $two Second SRR file path.
- * @return Some complicated array with differences.
+ * @param string $one First SRR file path.
+ * @param string $two Second SRR file path.
+ * @return array Some complicated array with differences.
  */
 function compareSrr($one, $two) {
 	$result = FALSE;
@@ -1330,9 +1330,8 @@ function nfoHash($nfoData) {
 
 /**
  * Merge two SRR files by selecting the wanted data parts from each of them.
- * @param $one First SRR file.
- * @param $two Second SRR file.
-
+ * @param string $one First SRR file.
+ * @param string $two Second SRR file.
  */
 function mergeSrr($one, $two, $storeOne, $storeTwo, $rarOne, $rarTwo, $result) {
 	$rone = processSrr($one);
@@ -1358,7 +1357,7 @@ function processSrsData(&$srsFileData) {
  * Parses an SRS file.
  * @param $fileHandle
  * @param int $srsSize
- * @return info array
+ * @return array info array
  */
 function processSrsHandle($fileHandle, $srsSize) {
 	$result = null;
@@ -1469,7 +1468,7 @@ function sortStoredFiles($srrFile, $sortedFileNameList) {
 /**
  * Returns the data of an SRR file that only contains the SFV and
  * the RAR meta data of a certain RAR set. Capitals are ignored for $volume.
- * @param file $srrFile
+ * @param string $srrFile
  * @param string $volume
  * @param string $applicationName
  * @return string
@@ -1577,7 +1576,7 @@ function parseLanguagesDiz($data) {
 
 /**
  * No locking occurs.
- * @param unknown_type $fileHandle
+ * @param resource $fileHandle
  * @return integer The size of the file.
  */
 function getFileSizeHandle($fileHandle) {
@@ -1674,8 +1673,8 @@ function fileNameCheckTest() {
 
 /**
  * Hash all RAR metadata parts of a SRR file.
- * @param $fileHandle The SRR file handle.
- * @param $rarFiles Subarray result from processSrr().
+ * @param resource $fileHandle The SRR file handle.
+ * @param array $rarFiles Subarray result from processSrr().
  */
 function hashParts($fileHandle , $rarFiles) {
 	$hashes = array();
@@ -1706,7 +1705,7 @@ function createStoredFileHeader($name, $fileSize) {
  * We choose the offset to insert a new file to be after the SRR Header Block
  * to keep all files always at the front and to anticipate new SRR blocks.
  * Pointer will be at the position of the return int.
- * @param $fileHandle	File handle to the SRR file.
+ * @param resource $fileHandle	File handle to the SRR file.
  */
 function newFileOffset($fileHandle) {
 	fseek($fileHandle, 0, SEEK_SET);
@@ -1724,7 +1723,7 @@ function newFileOffset($fileHandle) {
 
 /**
  * Returns an array with comments and files
- * @param $data Binary datastream of SFV file.
+ * @param resource $data Binary datastream of SFV file.
  */
 function processSfv($data) {
 	// create array of all the lines
