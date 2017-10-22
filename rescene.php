@@ -1754,8 +1754,10 @@ function processSfv($data) {
 					$fileName = substr($fileName, 1, strlen($fileName) - 2);
 				}
 				// make CRC value always 8 characters
+				// missing leading zeros with '; SFV created with ioA by WarC' in sfv
+				// Die_Aerzte_-_Das_Besten_Von_Kurz_Nach_Frueher_Bis_Jetzt-2CD-DE-1994-SDR_INT
 				$crc = rtrim(substr($line, $spaceIndex + 1, 8));
-				$result['files'][$fileName] = str_pad($crc, 8 - strlen($crc), '0');
+				$result['files'][$fileName] = str_pad($crc, 8, '0', STR_PAD_LEFT);
 			}
 		}
 	}
