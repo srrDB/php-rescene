@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2017-07-09
+ * Last version: 2017-11-23
  *
  * Features:
  *	- process a SRR file which returns:
@@ -1599,9 +1599,9 @@ function getBasenameVolume($pathVolumeName, $new_numbering) {
 	// Doctor.Who.The.Enemy.Of.The.World.S05E18.DVDRip.x264-PFa
 	// pfa-dw.s05e18.teotw.part02.rar
 	// pfa-dw.s05e18.teotw.part02.r00
-	$pattern = "/(.*?)(\.rar|\.\d{3}|\.[r-v]\d{2}|\.sfv)$/i";
+	$pattern = "/(.*?)(\.rar|\.\d{3}|\.[r-z]\d{2}|\.sfv)$/i";
 	if ($new_numbering) {
-		$pattern = "/(.*?)(\.part\d+\.rar|\.rar|\.\d{3}|\.[r-v]\d{2}|\.sfv)$/i";
+		$pattern = "/(.*?)(\.part\d+\.rar|\.rar|\.\d{3}|\.[r-z]\d{2}|\.sfv)$/i";
 	}
 	$fileName = basename($pathVolumeName);
 	$matches = Array();
