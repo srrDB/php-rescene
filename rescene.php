@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2017-11-23
+ * Last version: 2018-06-10
  *
  * Features:
  *	- process a SRR file which returns:
@@ -2327,12 +2327,13 @@ class TrackData {
 			$this->dataSize = $w['size'];
 			$add = 4;
 		}
-		$w = unpack('Vlow/Vhigh', substr($data, 4 + $extra + $add, 8));
+		$w = unpack('Vlow/Vhigh/vsignaturesize', substr($data, 4 + $extra + $add, 10));
 		$lowhex = str_pad(dechex($w['low']), 8, '0', STR_PAD_LEFT);
 		$highhex = dechex($w['high']);
 		// location where the track is located in the main file (often zero)
 		$this->matchOffset = hexdec($highhex . $lowhex);
-		// signature length and signature bytes we don't need
+		$this->signatureSize = $w['signaturesize'];
+		// signature bytes we don't need
 	}
 }
 
