@@ -1,4 +1,4 @@
-<?php 
+<?php
 /**
  * PHP Library to read and edit a .srr file. It reads .srs files.
  * Copyright (c) 2011-2017 Gfy
@@ -86,7 +86,7 @@
  */
 
 // necessary for storing files in large (60MB) SRR files
-ini_set('memory_limit', '512M');
+ini_set('memory_limit', '1024M');
 
 $BLOCKNAME = array(
 0x69 => 'SRR VolumeHeader',
@@ -124,7 +124,7 @@ $CLI_APP = false;
 // cli progs are cool
 if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
 	$CLI_APP = true;
-	
+
 	/* How to use the CLI version in Windows:
 	 - Download and install PHP.  http://windows.php.net/download/
 	- Run this script by entering something like
@@ -253,7 +253,7 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
 			} else {
 				echo "NOT OK!\n";
 			}
-			
+
 			//compareSrr($srr, $srr);
 
 			//$data = file_get_contents($srr);
@@ -273,7 +273,7 @@ if (!empty($argc) && strstr($argv[0], basename(__FILE__))) {
 //			   } else {
 //				   echo 'failure';
 //			   }
-			
+
 //			   $sf = array_keys($result['storedFiles']);
 //			   sort($sf);
 //			   if (sortStoredFiles($srr, $sf)) {
@@ -395,7 +395,7 @@ function processSrrHandle($fileHandle) {
 				$entry['blockSize'] = $block->hsize;
 				$entry['data'] = $block->data;
 				array_push($oso_hashes, $entry);
-				
+
 				if (!is_null($current_rar)) {
 					$current_rar = NULL; // SRR block detected: start again
 				}
@@ -516,7 +516,7 @@ function processSrrHandle($fileHandle) {
 							array_push($warnings, "RELOADED/HI2U/0x0007 custom RAR packer detected.");
 						}
 						// 2) crap group that doesn't store the correct size at all:
-						// The.Powerpuff.Girls.2016.S01E08.HDTV.x264-QCF							
+						// The.Powerpuff.Girls.2016.S01E08.HDTV.x264-QCF
 						if ($block->fileSize == 0xffffffff || $block->fileSize == -1) {
 							array_push($warnings, "Crappy QCF RAR packer detected.");
 						}
@@ -527,7 +527,7 @@ function processSrrHandle($fileHandle) {
 				if ($f['compressionMethod'] != 0x30) { // 0x30: Storing
 					$compressed = TRUE;
 				}
-				
+
 				// file size counting fixes
 				// 2) above int was correct? it must match at the end - QCF
 				if (($block->fileSize == -1 || $block->fileSize == 0xffffffff) && !$compressed) {
@@ -543,7 +543,7 @@ function processSrrHandle($fileHandle) {
 				// add leading zeros when the CRC isn't 8 characters
 				$f['fileCrc'] = strtoupper(str_pad($block->fileCrc, 8, '0', STR_PAD_LEFT));
 				$archived_files[$block->fileName] = $f;
-				
+
 				// file is encrypted with password
 				// The.Sims.4.City.Living.INTERNAL-RELOADED
 				if ($block->flags & 0x4) {
@@ -627,7 +627,7 @@ function processSrrHandle($fileHandle) {
 
 		// nuber of bytes we have processed
 		$read = ftell($fh);
-		
+
 		// don't loop when bad data is encountered
 		if ($read === $last_read) {
 			break;
@@ -645,7 +645,7 @@ function processSrrHandle($fileHandle) {
 			unset($sfv['files'][$key]); // remove data from $sfv
 		}
 	}
-	
+
 	if ($customPacker) {
 		array_push($warnings, 'Custom RAR packer detected.');
 	}
@@ -679,10 +679,10 @@ function processSrrHandle($fileHandle) {
 function getStoredFile($srrfile, $filename) {
 	$result = FALSE;
 	$fh = fopen($srrfile, 'rb');
-	
+
 	if (flock($fh, LOCK_SH)) {
 		$srr = processSrrHandle($fh);
-		
+
 		foreach($srr['storedFiles'] as $key => $value) {
 			if($key === $filename) {
 				$result = stream_get_contents($fh, $value['fileSize'], $value['fileOffset']);
@@ -692,7 +692,7 @@ function getStoredFile($srrfile, $filename) {
 
 		flock($fh, LOCK_UN); // release the lock
 	}
-	
+
 	fclose($fh); // close the file
 	return $result;
 }
@@ -706,10 +706,10 @@ function getStoredFile($srrfile, $filename) {
 function removeFile($srrfile, $filename) {
 	$result = FALSE;
 	$fh = fopen($srrfile, 'c+b');
-	
+
 	if (flock($fh, LOCK_EX)) {
 		$srr = processSrrHandle($fh);
-	
+
 		foreach ($srr['storedFiles'] as $key => $value) {
 			if ($value['fileName'] === $filename) {
 				// how much to remove? read the block starting from the offset
@@ -719,16 +719,16 @@ function removeFile($srrfile, $filename) {
 				fseek($fh, $value['blockOffset'] + $block->fullSize, SEEK_SET);
 				$after = fread($fh, $srr['srrSize']); // srrSize: the (max) amount to read
 				ftruncate($fh, $value['blockOffset']);
-				fseek($fh, 0, SEEK_END); // Upon success, returns 0; otherwise, returns -1. 
+				fseek($fh, 0, SEEK_END); // Upon success, returns 0; otherwise, returns -1.
 				fwrite($fh, $after);
 				$result = TRUE;
 				break;
 			}
 		}
-	
+
 		flock($fh, LOCK_UN); // release the lock
 	}
-	
+
 	fclose($fh); // close the file
 	return $result;
 }
@@ -765,10 +765,10 @@ function storeFile($srrFile, $filePath, $fdata) {
 	}
 
 	$fh = fopen($srrFile, 'c+b');
-	
+
 	if (flock($fh, LOCK_EX)) {
 		$srr = processSrrHandle($fh);
-		
+
 		// don't let the same file get added twice
 		foreach($srr['storedFiles'] as $key => $value) {
 			if($key === $filePath) {
@@ -777,7 +777,7 @@ function storeFile($srrFile, $filePath, $fdata) {
 				return FALSE;
 			}
 		}
-	
+
 		$offset = newFileOffset($fh);
 		if ($offset < 0) {
 			// broken/empty .srr file due to bugs :(
@@ -785,7 +785,7 @@ function storeFile($srrFile, $filePath, $fdata) {
 			fclose($fh);
 			return FALSE;
 		}
-		
+
 		$after = fread($fh, $srr['srrSize']);
 		$header = createStoredFileHeader($filePath, strlen($fdata));
 		ftruncate($fh, $offset);
@@ -793,20 +793,20 @@ function storeFile($srrFile, $filePath, $fdata) {
 		fwrite($fh, $header);
 		fwrite($fh, $fdata);
 		fwrite($fh, $after);
-	
+
 		flock($fh, LOCK_UN); // release the lock
 	}
-	
+
 	fclose($fh); // close the file
 	return TRUE;
 }
 
 function addOsoHash($srrFile, $oso_hash_data) {
 	$fh = fopen($srrFile, 'c+b');
-	
+
 	if (flock($fh, LOCK_EX)) {
 		$result = processSrrHandle($fh);
-		
+
 		// the hash must not already exist
 		foreach($result['osoHashes'] as $value) {
 			if ($value['data'] == $oso_hash_data) {
@@ -815,20 +815,20 @@ function addOsoHash($srrFile, $oso_hash_data) {
 				return FALSE;
 			}
 		}
-		
+
 		fseek($fh, 0, SEEK_END); // is not necessary
 		fwrite($fh, $oso_hash_data);
-	
+
 		flock($fh, LOCK_UN); // release the lock
 	}
-	
+
 	fclose($fh); // close the file
 	return TRUE;
 }
 
 // /**
 //	* Adds a new OSO hash to the end of the SRR file.
-//	* 
+//	*
 //	* @param string $srr
 //	* @param int $fileSize
 //	* @param string $osoHash
@@ -842,7 +842,7 @@ function addOsoHash($srrFile, $oso_hash_data) {
 //	   if ($fileSize < 0 || !preg_match('/[a-f0-9]{16}/i', $osoHash) || strlen($fileName) < 1) {
 //		   return FALSE;
 //	   }
-	
+
 //	   // the hash must not already exist
 //	   $result = processSrr($srr);
 //	   foreach($result['osoHashes'] as $value) {
@@ -852,14 +852,14 @@ function addOsoHash($srrFile, $oso_hash_data) {
 //			   return FALSE;
 //		   }
 //	   }
-	
+
 //	   $fh = fopen($srr, 'rb');
 //	   $before = fread($fh, getFileSizeHandle($fh));
 //	   fclose($fh);
-	
+
 //	   // 2 byte CRC, 1 byte block type, 2 bytes for the flag 0x0000
 //	   $header = pack('H*' , '6B6B6B0000');
-	
+
 //	   $osoBlockHeader = encode_int($fileSize); // broken on 32 bit!!
 //	   // OSO hash stored as little endian
 //	   $reversed = '';
@@ -901,13 +901,13 @@ function renameFile($srrFile, $oldName, $newName) {
 		}
 		return FALSE;
 	}
-	
+
 	$result = FALSE;
 	$fh = fopen($srrFile, 'c+b');
-	
+
 	if (flock($fh, LOCK_EX)) {
 		$srr = processSrrHandle($fh);
-		
+
 		// prevent renaming to a file that already exists
 		foreach ($srr['storedFiles'] as $key => $value) {
 			if ($key === $newName) {
@@ -916,7 +916,7 @@ function renameFile($srrFile, $oldName, $newName) {
 				return FALSE;
 			}
 		}
-		 
+
 		// rename the first file
 		foreach ($srr['storedFiles'] as $key => $value) {
 			if ($value['fileName'] === $oldName) {
@@ -935,10 +935,10 @@ function renameFile($srrFile, $oldName, $newName) {
 				break;
 			}
 		}
-		
+
 		flock($fh, LOCK_UN); // release the lock
 	}
-	
+
 	fclose($fh); // close the file
 	return $result;
 }
@@ -958,7 +958,7 @@ function calculateHash($srrfile, $rarFiles, $algorithm='sha1') {
 	// Parlamentet.S06E02.SWEDiSH-SQC
 	$hashContext = hash_init($algorithm);
 	$fh = fopen($srrfile, 'rb');
-	
+
 	if (flock($fh, LOCK_SH)) {
 		// calculate hash only on the RAR metadata
 		foreach ($rarFiles as $key => $value) {
@@ -970,7 +970,7 @@ function calculateHash($srrfile, $rarFiles, $algorithm='sha1') {
 
 		flock($fh, LOCK_UN); // release the lock
 	}
-	
+
 	fclose($fh); // close the file
 	return hash_final($hashContext);
 }
@@ -1032,20 +1032,20 @@ function compareSrr($one, $two) {
 	$result = FALSE;
 	$fho = fopen($one, 'rb');
 	$fht = fopen($two, 'rb');
-	
+
 	if (flock($fho, LOCK_SH) && flock($fht, LOCK_SH)) {
 		$rone = processSrrHandle($fho);
 		$rtwo = processSrrHandle($fht);
-		
+
 		$result = compareSrrRaw($rone, $rtwo, $fho, $fht);
-	
+
 		flock($fho, LOCK_UN); // release the lock
 		flock($fht, LOCK_UN);
 	}
-	
+
 	fclose($fho); // close the files
-	fclose($fht); 
-	
+	fclose($fht);
+
 	return $result;
 }
 
@@ -1402,7 +1402,7 @@ function processSrsHandle($fileHandle, $srsSize) {
  */
 function sortStoredFiles($srrFile, $sortedFileNameList) {
 	$fh = fopen($srrFile, 'c+b');
-	
+
 	if (flock($fh, LOCK_EX)) {
 		$srrInfo = processSrrHandle($fh);
 
@@ -1413,7 +1413,7 @@ function sortStoredFiles($srrFile, $sortedFileNameList) {
 			fclose($fh);
 			return FALSE;
 		}
-		
+
 		$before = $srrInfo['srrSize'];
 		$after = 0;
 		// check if each name is the same in both lists
@@ -1423,7 +1423,7 @@ function sortStoredFiles($srrFile, $sortedFileNameList) {
 				fclose($fh);
 				return FALSE;
 			}
-		
+
 			// offsets where the stored files start and end
 			if ($value['blockOffset'] < $before) {
 				$before = $value['blockOffset'];
@@ -1433,12 +1433,12 @@ function sortStoredFiles($srrFile, $sortedFileNameList) {
 				$after = $offset;
 			}
 		}
-		
+
 		fseek($fh, 0, SEEK_SET);
 		$beforeData = fread($fh, $before);
 		fseek($fh, $after, SEEK_SET);
 		$afterData = fread($fh, $srrInfo['srrSize']); // srrSize: the (max) amount to read
-		
+
 		// sort the files and grab their blocks
 		$between = '';
 		foreach ($sortedFileNameList as $key) {
@@ -1449,18 +1449,18 @@ function sortStoredFiles($srrFile, $sortedFileNameList) {
 			fseek($fh, $bo, SEEK_SET);
 			$between .= fread($fh, $blockSize);
 		}
-		
+
 		$bytesWritten = 0;
 		fseek($fh, 0, SEEK_SET);
 		$bytesWritten += fwrite($fh, $beforeData);
 		$bytesWritten += fwrite($fh, $between);
 		$bytesWritten += fwrite($fh, $afterData);
-	
+
 		flock($fh, LOCK_UN); // release the lock
 		fclose($fh); // close the file
 		return assert($bytesWritten === $srrInfo['srrSize']);
 	}
-	
+
 	fclose($fh); // close the file
 	return TRUE;
 }
@@ -1476,14 +1476,14 @@ function sortStoredFiles($srrFile, $sortedFileNameList) {
 function grabSrrSubset($srrFile, $volume, $applicationName = 'rescene.php partial SRR file') {
 	$result = '';
 	$fh = fopen($srrFile, 'rb');
-	
+
 	if (flock($fh, LOCK_SH)) {
 		$srrInfo = processSrrHandle($fh);
 		$volume = strtolower($volume);
-		
+
 		// 1) construct SRR file header
 		$result = createSrrHeaderBlock($applicationName);
-		
+
 		// 2) add the right SFV file
 		foreach ($srrInfo['storedFiles'] as $key => $value) {
 			if (strtolower(substr($key, -4)) === '.sfv' &&
@@ -1492,7 +1492,7 @@ function grabSrrSubset($srrFile, $volume, $applicationName = 'rescene.php partia
 				$result .= stream_get_contents($fh, $length, $value['blockOffset']);
 			}
 		}
-		
+
 		// 3) add the right RAR meta data
 		foreach ($srrInfo['rarFiles'] as $key => $value) {
 			if (strtolower($value['basenameVolume']) === $volume) {
@@ -1500,12 +1500,12 @@ function grabSrrSubset($srrFile, $volume, $applicationName = 'rescene.php partia
 				$result .= stream_get_contents($fh, $length, $value['offsetStartSrr']);
 			}
 		}
-		
+
 		// 4) ignore everything else
-		
+
 		flock($fh, LOCK_UN); // release the lock
 	}
-	
+
 	fclose($fh); // close the file
 	return $result;
 }
@@ -1606,7 +1606,7 @@ function getBasenameVolume($pathVolumeName, $new_numbering) {
 	$fileName = basename($pathVolumeName);
 	$matches = Array();
 	if (preg_match($pattern, $fileName, $matches)) {
-		return $matches[1]; 
+		return $matches[1];
 	} else {
 		return $fileName; // strange case that shouldn't happen
 	}
@@ -1880,7 +1880,7 @@ class Block {
 		// skip possible (future) fields to start file
 		$this->skipHeader();
 	}
-	
+
 	/**
 	 * Reads the OpenSubtitles.org Hashes.
 	 */
@@ -1891,18 +1891,18 @@ class Block {
 		$lowhex = str_pad(dechex($file_size['low']), 8, '0', STR_PAD_LEFT);
 		$highhex = dechex($file_size['high']);
 		$this->fileSize = hexdec($highhex . $lowhex);
-		
+
 		// OSO HASH
 		$oso_hash = unpack('Vlow/Vhigh', fread($this->fh, 8));
 		// add the high order bits before the low order bits and convert to decimal
 		$lowhex = str_pad(dechex($oso_hash['low']), 8, '0', STR_PAD_LEFT);
 		$highhex = dechex($oso_hash['high']);
 		$this->osoHash = $highhex . $lowhex;
-		
+
 		// FILE NAME
 		$array = unpack('vnameSize', fread($this->fh, 2));
 		$this->fileName = fread($this->fh, $array['nameSize']);
-		
+
 		// skip possible (future) fields
 		fseek($this->fh, $this->startOffset, SEEK_SET);
 		$this->data = fread($this->fh, $this->hsize);
@@ -1952,17 +1952,17 @@ class Block {
 		if ($this->flags & 0x200) {
 			// Split the standard filename and unicode data from the file_name field
 			$fn = explode("\x00", fread($this->fh, $array['nameSize']));
-		
+
 			// Decompress the unicode filename, encode the result as UTF-8
 			$uc = new RarUnicodeFilename($fn[0], $fn[1]);
 			if ($ucname = $uc->decode()) {
 				$this->fileName = @iconv('UTF-16LE', 'UTF-8//IGNORE//TRANSLIT', $ucname);
-		
+
 			// Fallback to the standard filename
 			} else {
 				$this->fileName = $fn[0];
 			}
-		
+
 		// Filename: non-unicode
 		} else {
 			$this->fileName = fread($this->fh, $array['nameSize']);
@@ -2137,11 +2137,11 @@ function parse_srs_mp4($fh, $srsSize) {
 function parse_srs_wmv($fh, $srsSize) {
 	$result = array();
 	$result['trackData'] = array();
-	
+
 	$GUID_SRS_FILE = 'SRSFSRSFSRSFSRSF';
 	$GUID_SRS_TRACK = 'SRSTSRSTSRSTSRST';
 	$GUID_SRS_PADDING = "PADDINGBYTESDATA";
-	
+
 	$start_pos = strpos(fread($fh, $srsSize), $GUID_SRS_FILE);
 	fseek($fh, $start_pos);
 
@@ -2152,7 +2152,7 @@ function parse_srs_wmv($fh, $srsSize) {
 	   $lowhex = str_pad(dechex($object_size['low']), 8, '0', STR_PAD_LEFT);
 	   $highhex = dechex($object_size['high']);
 	   $size = hexdec($highhex . $lowhex);
-	   
+
 	   $object_data = fread($fh, $size - 24);
 	   if ($guid == $GUID_SRS_FILE) {
 		   $result['fileData'] = new FileData($object_data);
@@ -2168,7 +2168,7 @@ function parse_srs_wmv($fh, $srsSize) {
 		   // nothing interesting follows
 		   break;
 	   }
-		
+
 	   $start_pos = ftell($fh);
 	}
 
@@ -2178,7 +2178,7 @@ function parse_srs_wmv($fh, $srsSize) {
 function parse_srs_flac($fh, $srsSize) {
 	$result = array();
 	$result['trackData'] = array();
-	
+
 	$fr = new FlacReader($fh, $srsSize);
 	while($fr->read()) {
 		if ($fr->blockType == 's') {
@@ -2193,13 +2193,13 @@ function parse_srs_flac($fh, $srsSize) {
 		} else {
 			$fr->skipContents();
 		}
-		
+
 		// mandatory STREAMINFO metadata block encountered
 		if ($fr->blockType == "\0") {
 			break; // stop parsing FLAC file
 		}
 	}
-	
+
 	return $result;
 }
 
@@ -2213,9 +2213,9 @@ function read_fingerprint_data($track, $data) {
 function parse_srs_mp3($fh, $srsSize) {
 	$result = array();
 	$result['trackData'] = array();
-	
+
 	$data = fread($fh, $srsSize);
-	
+
 	// won't work correctly if there is the string 'SRSF' in the ID3 tag
 	// => so skip the ID3 tag
 	if (substr($data, 0, 3) === 'ID3') {
@@ -2231,7 +2231,7 @@ function parse_srs_mp3($fh, $srsSize) {
 			$data = substr($data, 10 + $tagLen);
 		}
 	}
-	
+
 	$f = strpos($data, 'SRSF'); // file
 	$t = strpos($data, 'SRST', $f); // track
 	$p = strpos($data, 'SRSP', $t); // fingerprint
@@ -2248,17 +2248,17 @@ function parse_srs_mp3($fh, $srsSize) {
 		$l = unpack('Vlength', substr($data, $p + 4, 4));
 		$result['trackData'][1] = read_fingerprint_data($result['trackData'][1], substr($data, $p + 8, $l['length'] - 8));
 	}
-	
+
 	return $result;
-}	
+}
 
 function parse_srs_stream($fh, $srsSize) {
 	$result = array();
 	$result['trackData'] = array();
-	
+
 	$startPos = 0;
 	fseek($fh, $startPos);
-	
+
 	while ($startPos < $srsSize) {
 		if ($startPos + 8 > $srsSize) {
 			break; // SRS file too small
@@ -2274,10 +2274,10 @@ function parse_srs_stream($fh, $srsSize) {
 			$track = new TrackData(fread($fh, $blockSize - 8));
 			$result['trackData'][$track->trackNumber] = $track;
 		}
-	
+
 		$startPos += $blockSize;
 	}
-	
+
 	return $result;
 }
 
@@ -2594,9 +2594,9 @@ class MovReader {
 		$this->headerSize = $hsize;
 		$this->atomLength = $atomLength;
 		$this->atomStartPosition = $atomStartPosition;
-			
+
 		fseek($this->fh, $atomStartPosition, SEEK_SET);
-		
+
 		return TRUE;
 	}
 
@@ -2609,7 +2609,7 @@ class MovReader {
 		$buffer = null;
 
 		fseek($this->fh, $this->headerSize, SEEK_CUR);
-		
+
 		if ($this->atomType != 'mdat') {
 			$buffer = fread($this->fh, $this->atomLength - $this->headerSize);
 		}
@@ -2648,14 +2648,14 @@ class FlacReader {
 
 	public function read() {
 		assert($this->readDone);
-		
+
 		$this->blockStartPosition = ftell($this->fh);
 		$this->readDone = FALSE;
-		
+
 		if ($this->blockStartPosition == $this->fileSize) {
 			return FALSE;
 		}
-		
+
 		$header = fread($this->fh, 4);
 		if ($header == 'fLaC') {
 			$this->blockType = 'fLaC';
