@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2018-06-10
+ * Last version: 2019-02-15
  *
  * Features:
  *	- process a SRR file which returns:
@@ -1342,7 +1342,7 @@ function mergeSrr($one, $two, $storeOne, $storeTwo, $rarOne, $rarTwo, $result) {
 
 }
 
-function processSrsData(&$srsFileData) {
+function processSrsData(&$srsFileData, $checkWinrape = true) {
 	// http://www.php.net/manual/en/wrappers.php.php
 	// Set the limit to 5 MiB. After this limit, a temporary file will be used.
 	$memoryLimit = 5 * 1024 * 1024;
@@ -1350,7 +1350,7 @@ function processSrsData(&$srsFileData) {
 	fputs($fp, $srsFileData);
 	rewind($fp);
 	$fileAttributes = fstat($fp);
-	return processSrsHandle($fp, $fileAttributes['size']);
+	return processSrsHandle($fp, $fileAttributes['size'], $checkWinrape);
 }
 
 /**
@@ -1359,7 +1359,7 @@ function processSrsData(&$srsFileData) {
  * @param int $srsSize
  * @return array info array
  */
-function processSrsHandle($fileHandle, $srsSize) {
+function processSrsHandle($fileHandle, $srsSize, $checkWinrape = true) {
 	$result = null;
 	switch(detectFileFormat($fileHandle)) {
 		case FileType::AVI:
@@ -1390,6 +1390,11 @@ function processSrsHandle($fileHandle, $srsSize) {
 			}
 			break;
 	}
+
+	if ($checkWinrape) {
+		$result = detectWinRape($fileHandle, $srsSize, $result);
+	}
+
 	fclose($fileHandle);
 	return $result;
 }
@@ -2045,6 +2050,15 @@ function calcDecTagLen($word) {
 		$m=$m*128;
 	}
 	return $int;
+}
+
+function detectWinRape($fileHandle, $srsSize, $result) {
+	$winRape = 'WM/MediaClassPrimaryID';
+	rewind($fileHandle);
+	$data = fread($fileHandle, $srsSize);
+	$raped = strpos($data, $winRape) !== false;
+	$result['winrape'] = $raped;
+	return $result;
 }
 
 function parse_srs_avi($fh, $srsSize) {
