@@ -1521,7 +1521,7 @@ function grabSrrSubset($srrFile, $volume, $applicationName = 'rescene.php partia
  * @param array $srrInfo
  * @return array with languages structure
  */
-function getVobsubLanguages($srrFile, $srrInfo = null) {
+function getVobsubLanguages($srrFile, &$srrInfo = null) {
 	$languages = array();
 	$fh = fopen($srrFile, 'rb');
 
@@ -1540,6 +1540,19 @@ function getVobsubLanguages($srrFile, $srrInfo = null) {
 					$vobsubSrr = processSrrData($storedSrr);
 					$lv = $vobsubSrr['storedFiles']['languages.diz']; // can fail in theory
 					$dizFiles[$key] = substr($storedSrr, $lv['fileOffset'], $lv['fileSize']);
+
+					foreach ($vobsubSrr['rarFiles'] as $key => $vsrar) {
+						// grab real CRC info from SFV
+						$rarName = $vsrar['fileName'];
+						$crc = $vsrar['fileCrc']; // always UNKNOWN! for vobsub srrs
+						if (array_key_exists($rarName, $srrInfo['sfv']['files'])) {
+							$crc = $srrInfo['sfv']['files'][$rarName];
+						}
+
+						$vsrar['fileName'] = dirname($value['fileName']) . '/' . $vsrar['fileName'];
+						$vsrar['fileCrc'] = strtoupper($crc);
+						$srrInfo['vobsubFiles'][] = $vsrar;
+					}
 				}
 			}
 		}
