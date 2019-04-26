@@ -85,6 +85,8 @@
  *
  */
 
+namespace ReScene;
+
 // necessary for storing files in large (60MB) SRR files
 ini_set('memory_limit', '1024M');
 
@@ -963,7 +965,7 @@ function renameFile($srrFile, $oldName, $newName) {
 function calculateHash($srrfile, $rarFiles, $algorithm='sha1') {
 	// do the calculation only on the sorted RAR volumes
 	// this way it still yields the same result if the order of creation differs
-	uasort($rarFiles, 'rarFileCmp'); // sort on filename without path, case insensitive
+	uasort($rarFiles, '\ReScene\rarFileCmp'); // sort on filename without path, case insensitive
 	// compared with pyReScene when capitals are used: same behavior
 	// Parlamentet.S06E02.SWEDiSH-SQC
 	$hashContext = hash_init($algorithm);
@@ -996,7 +998,7 @@ function rarFileCmp($a, $b) {
 function calculateHashHandle($srrHandle, $rarFiles, $algorithm='sha1') {
 	// do the calculation only on the sorted RAR volumes
 	// this way it still yields the same result if the order of creation differs
-	uasort($rarFiles, 'rarFileCmp'); // sort on filename without path, case insensitive
+	uasort($rarFiles, '\ReScene\rarFileCmp'); // sort on filename without path, case insensitive
 	$hashContext = hash_init($algorithm);
 
 	// calculate hash only on the RAR metadata
@@ -1012,7 +1014,7 @@ function calculateHashHandle($srrHandle, $rarFiles, $algorithm='sha1') {
 function calculateHashString($srrData, $rarFiles, $algorithm='sha1') {
 	// do the calculation only on the sorted RAR volumes
 	// this way it still yields the same result if the order of creation differs
-	uasort($rarFiles, 'rarFileCmp'); // sort on filename without path, case insensitive
+	uasort($rarFiles, '\ReScene\rarFileCmp'); // sort on filename without path, case insensitive
 	$hashContext = hash_init($algorithm);
 
 	// calculate hash only on the RAR metadata
