@@ -398,7 +398,7 @@ function processSrrHandle($fileHandle) {
 				$entry['data'] = $block->data;
 				array_push($oso_hashes, $entry);
 
-				if (!is_null($current_rar)) {
+				if (!\is_null($current_rar)) {
 					$current_rar = NULL; // SRR block detected: start again
 				}
 				break;
@@ -450,7 +450,7 @@ function processSrrHandle($fileHandle) {
 				// -> 'ReScene Database Cleanup Script 1.0' SRRs were fixed with 'FireScene Cleanup'
 				// (stored files weren't before the first SRR Rar file block)
 			case 0x71: // SRR Rar File
-				if (!is_null($current_rar)) {
+				if (!\is_null($current_rar)) {
 					$current_rar = NULL; // SRR block detected: start again
 				}
 				// end fall through from SRR Stored File block
@@ -553,7 +553,7 @@ function processSrrHandle($fileHandle) {
 				}
 				break;
 			case 0x78: // RAR Old Recovery
-				if (is_null($recovery)) {
+				if (\is_null($recovery)) {
 					// first recovery block we see
 					$recovery = array();
 					$recovery['fileName'] = 'Protect!';
@@ -569,7 +569,7 @@ function processSrrHandle($fileHandle) {
 			case 0x7A: // RAR New Subblock: RR, AV, CMT
 				$block->rarReadPackedFileHeader();
 				if ($block->fileName === 'RR') { // Recovery Record
-					if (is_null($recovery)) {
+					if (\is_null($recovery)) {
 						$recovery = array();
 						$recovery['fileName'] = 'Protect+';
 						$recovery['fileSize'] = 0;
@@ -617,7 +617,7 @@ function processSrrHandle($fileHandle) {
 		}
 
 		// calculate size of the rar file + end offset
-		if (!is_null($current_rar)) {
+		if (!\is_null($current_rar)) {
 			if ($add_size === TRUE) {
 				$current_rar['fileSize'] += $block->fullSize;
 			}
@@ -638,11 +638,11 @@ function processSrrHandle($fileHandle) {
 	}
 
 	// mapping SFV CRC32 -> RAR
-	if (count($rar_files) > 0) {
-		$sfvTotal = count($sfv['files']);
+	if (\count($rar_files) > 0) {
+		$sfvTotal = \count($sfv['files']);
 		addCrcSfvs($sfv, $rar_files);
 
-		if ($sfvTotal === count($sfv['files'])) {
+		if ($sfvTotal === \count($sfv['files'])) {
 			// examples: Office.Lady.Sex.Orgv.BID-027.Jav.Censored.DVDRip.XviD-MotTto
 			// Mana.Sakura.STAR-334.Jav.Censored.DVDRip.XviD-MotTto
 			$cleanedMapping = array();
@@ -650,7 +650,7 @@ function processSrrHandle($fileHandle) {
 				$cleanedMapping[trim($key)] = $key;
 			}
 			addCrcSfvs($sfv, $rar_files, $cleanedMapping);
-			if ($sfvTotal === count($sfv['files'])) {
+			if ($sfvTotal === \count($sfv['files'])) {
 				array_push($warnings, 'Included SFVs have no SRR stored RAR file matches.');
 			} else {
 				array_push($warnings, 'Stored RAR file names have leading/trailing spaces.');
@@ -799,7 +799,7 @@ function storeFile($srrFile, $filePath, $fdata) {
 		}
 
 		$after = fread($fh, $srr['srrSize']);
-		$header = createStoredFileHeader($filePath, strlen($fdata));
+		$header = createStoredFileHeader($filePath, \strlen($fdata));
 		ftruncate($fh, $offset);
 		fseek($fh, 0, SEEK_END); // Upon success, returns 0; otherwise, returns -1.
 		fwrite($fh, $header);
@@ -851,7 +851,7 @@ function addOsoHash($srrFile, $oso_hash_data) {
 //	   if (fileNameCheck($fileName) || strstr($fileName, '/')) {
 //		   return FALSE;
 //	   }
-//	   if ($fileSize < 0 || !preg_match('/[a-f0-9]{16}/i', $osoHash) || strlen($fileName) < 1) {
+//	   if ($fileSize < 0 || !preg_match('/[a-f0-9]{16}/i', $osoHash) || \strlen($fileName) < 1) {
 //		   return FALSE;
 //	   }
 
@@ -875,13 +875,13 @@ function addOsoHash($srrFile, $oso_hash_data) {
 //	   $osoBlockHeader = encode_int($fileSize); // broken on 32 bit!!
 //	   // OSO hash stored as little endian
 //	   $reversed = '';
-//	   for($i=strlen($osoHash);$i>=0;$i-=2) {
+//	   for($i=\strlen($osoHash);$i>=0;$i-=2) {
 //		   $reversed .= substr($osoHash, $i, 2);
 //	   }
 //	   $osoBlockHeader .= pack('H*' , $reversed);
-//	   $osoBlockHeader .= pack('v', strlen($fileName));
+//	   $osoBlockHeader .= pack('v', \strlen($fileName));
 //	   $osoBlockHeader .= $fileName;
-//	   $headerSize = pack('v', 5 + 2 + 8 + 8 + 2 + strlen($fileName));
+//	   $headerSize = pack('v', 5 + 2 + 8 + 8 + 2 + \strlen($fileName));
 
 //	   print_r(unpack('H*', $header . $headerSize . $osoBlockHeader));
 //	   //file_put_contents($srr, $before . $header . $headerSize . $osoBlockHeader, LOCK_EX);
@@ -892,8 +892,8 @@ function addOsoHash($srrFile, $oso_hash_data) {
 //	   $in = decbin($in);
 //	   $in = str_pad($in, $pad_to_bits, '0', STR_PAD_LEFT);
 //	   $out = '';
-//	   for ($i = 0, $len = strlen($in); $i < $len; $i += 8) {
-//		   $out .= chr(bindec(substr($in,$i,8)));
+//	   for ($i = 0, $len = \strlen($in); $i < $len; $i += 8) {
+//		   $out .= \chr(bindec(substr($in,$i,8)));
 //	   }
 //	   if($little_endian) $out = strrev($out);
 //	   return $out;
@@ -1081,7 +1081,7 @@ function compareSrrRaw($rone, $rtwo, $fhone, $fhtwo) {
 	$left = array_diff($hashesOne, $hashesTwo);
 	$right = array_diff($hashesTwo, $hashesOne);
 
-	if ($sameRarData && count(array_merge($left, $right)) === 0) {
+	if ($sameRarData && \count(array_merge($left, $right)) === 0) {
 		$sameRarNames = TRUE;
 	} else {
 		$sameRarNames = FALSE;
@@ -1100,7 +1100,7 @@ function compareSrrRaw($rone, $rtwo, $fhone, $fhtwo) {
 
 			// heuristic: we want the one with the longest length
 			// this one probably has a path added
-			if (strlen($l) > strlen($r)) {
+			if (\strlen($l) > \strlen($r)) {
 				array_push($namesRarOne, $l);
 			} else {
 				array_push($namesRarTwo, $r);
@@ -1177,13 +1177,13 @@ function compareSrrRaw($rone, $rtwo, $fhone, $fhtwo) {
 			$toUnset = FALSE;
 			if ($ovalue['files'] === $tvalue['files']) {
 				// suggest the SFV file with the most comments
-				if (count($ovalue['comments']) > count($tvalue['comments'])) {
+				if (\count($ovalue['comments']) > \count($tvalue['comments'])) {
 					$best = 0;
-				} elseif (count($ovalue['comments']) < count($tvalue['comments'])) {
+				} elseif (\count($ovalue['comments']) < \count($tvalue['comments'])) {
 					$best = 1;
 				} else {
 					// SFV with the longest file name has probably path info
-					if (strlen($ovalue['fileName']) > strlen($tvalue['fileName'])) {
+					if (\strlen($ovalue['fileName']) > \strlen($tvalue['fileName'])) {
 						$best = 0;
 					} else {
 						$best = 1;
@@ -1233,7 +1233,7 @@ function compareSrrRaw($rone, $rtwo, $fhone, $fhtwo) {
 						$best = 1;
 					} else {
 						// suggest longest file name
-						if (strlen($ovalue['fileName']) > strlen($tvalue['fileName'])) {
+						if (\strlen($ovalue['fileName']) > \strlen($tvalue['fileName'])) {
 							$best = 0;
 						} else {
 							$best = 1;
@@ -1309,7 +1309,7 @@ function addNfoHash($list, $fileHandle) {
 		$list[$key]['hash'] = nfoHash($nfoData);
 		// check for which nfo has the fewest lines -> probably no unnessesary white lines
 		// Indiana.Jones.And.The.Last.Crusade.1989.PAL.DVDR-DNA
-		$list[$key]['lines'] = count(explode("\n", $nfoData));
+		$list[$key]['lines'] = \count(explode("\n", $nfoData));
 	}
 	return $list;
 }
@@ -1424,8 +1424,8 @@ function sortStoredFiles($srrFile, $sortedFileNameList) {
 		$srrInfo = processSrrHandle($fh);
 
 		// not the same amount of elements: bad input
-		if (count($srrInfo['storedFiles']) != count($sortedFileNameList) ||
-			count(preg_grep("/^Duplicate/", $srrInfo['warnings'])) > 0) {
+		if (\count($srrInfo['storedFiles']) != \count($sortedFileNameList) ||
+			\count(preg_grep("/^Duplicate/", $srrInfo['warnings'])) > 0) {
 			flock($fh, LOCK_UN);
 			fclose($fh);
 			return FALSE;
@@ -1475,7 +1475,7 @@ function sortStoredFiles($srrFile, $sortedFileNameList) {
 
 		flock($fh, LOCK_UN); // release the lock
 		fclose($fh); // close the file
-		return assert($bytesWritten === $srrInfo['srrSize']);
+		return \assert($bytesWritten === $srrInfo['srrSize']);
 	}
 
 	fclose($fh); // close the file
@@ -1674,7 +1674,7 @@ function getBasenameVolumeTest() {
  * @return string
  */
 function createSrrHeaderBlock($applicationName) {
-	$nameLength = strlen($applicationName);
+	$nameLength = \strlen($applicationName);
 	return pack('H*vv', '6969690100', 7 + 2 + $nameLength, $nameLength) . $applicationName;
 }
 
@@ -1743,8 +1743,8 @@ function createStoredFileHeader($name, $fileSize) {
 	// 2 byte CRC, 1 byte block type, 2 bytes for the flag 0x8000: addsize field is present
 	$header = pack('H*' , '6A6A6A0080');
 	$addSize = pack('V', $fileSize);
-	$pathLength = pack('v', strlen($name));
-	$headerSize = pack('v', 5 + 2 + 4 + 2 + strlen($name));
+	$pathLength = pack('v', \strlen($name));
+	$headerSize = pack('v', 5 + 2 + 4 + 2 + \strlen($name));
 	return $header . $headerSize . $addSize . $pathLength . $name;
 }
 
@@ -1779,14 +1779,14 @@ function processSfv($data) {
 	$result['comments'] = array();
 	$result['files'] = array();
 
-	for ($i=0; $i < count($lines); $i++) {
+	for ($i=0; $i < \count($lines); $i++) {
 		$line = trim($lines[$i]);
-		$lineLength = strlen($line);
+		$lineLength = \strlen($line);
 
 		// process if line has contents
 		if ($lineLength > 0) {
 			// the line is a comment line or it is too short
-			if (in_array($line[0], array(';')) or $lineLength < 10) {
+			if (\in_array($line[0], array(';')) or $lineLength < 10) {
 				array_push($result['comments'], $line);
 			} else {
 				// parse SFV line
@@ -1797,8 +1797,8 @@ function processSfv($data) {
 				// ; sfv created by SFV Checker
 				// "01-the_contingency_plan-apocalypse_in_stereo-kzt.mp3" 9757ce72
 				// ; Total 5 File(s) Combined CRC32 Checksum: a4b5d005
-				if (substr($fileName, 0, 1) === '"' && substr($fileName, strlen($fileName) - 1) === '"') {
-					$fileName = substr($fileName, 1, strlen($fileName) - 2);
+				if (substr($fileName, 0, 1) === '"' && substr($fileName, \strlen($fileName) - 1) === '"') {
+					$fileName = substr($fileName, 1, \strlen($fileName) - 2);
 				}
 				// make CRC value always 8 characters
 				// missing leading zeros with '; SFV created with ioA by WarC' in sfv
@@ -2087,7 +2087,7 @@ function detectFileFormat($fileHandle) {
 function calcDecTagLen($word) {
 	$m = 1;
 	$int = 0;
-	for ($i=strlen($word)-1;$i>-1;$i--) {
+	for ($i=\strlen($word)-1;$i>-1;$i--) {
 		$int +=$m*ord($word[$i]);
 		$m=$m*128;
 	}
@@ -2484,14 +2484,14 @@ class EbmlReader {
 
 	private function String2Hex($string){
 		$hex='';
-		for ($i=0; $i < strlen($string); $i++){
+		for ($i=0; $i < \strlen($string); $i++){
 			$hex .= str_pad(dechex(ord($string[$i])), 2,  '0', STR_PAD_LEFT);
 		}
 		return $hex;
 	}
 
 	public function read() {
-		assert($this->readDone == TRUE || $this->etype == EbmlType::Block);
+		\assert($this->readDone == TRUE || $this->etype == EbmlType::Block);
 		// too little data
 		if (ftell($this->fh) + 2 > $this->fileSize) {
 			return FALSE;
@@ -2515,8 +2515,8 @@ class EbmlReader {
 			$elementHeader .= $this->String2Hex(fread($this->fh, $dataLengthDescriptor - 1));
 		}
 
-		assert ($idLengthDescriptor + $dataLengthDescriptor == strlen($elementHeader)/2);
-		if ($idLengthDescriptor + $dataLengthDescriptor != strlen($elementHeader)/2)
+		\assert ($idLengthDescriptor + $dataLengthDescriptor == \strlen($elementHeader)/2);
+		if ($idLengthDescriptor + $dataLengthDescriptor != \strlen($elementHeader)/2)
 			exit();
 
 		// data
@@ -2610,11 +2610,11 @@ class MovReader {
 		$this->atomType = '';
 		$this->atomLength = 0;
 		$this->atomStartPosition = 0;
-		assert(ftell($this->fh) === 0);
+		\assert(ftell($this->fh) === 0);
 	}
 
 	public function read() {
-		assert($this->readDone);
+		\assert($this->readDone);
 		$atomStartPosition = ftell($this->fh);
 		$this->readDone = FALSE;
 
@@ -2699,11 +2699,11 @@ class FlacReader {
 		$this->blockType = '';
 		$this->blockLength = 0;
 		$this->blockStartPosition = 0;
-		assert(ftell($this->fh) === 0);
+		\assert(ftell($this->fh) === 0);
 	}
 
 	public function read() {
-		assert($this->readDone);
+		\assert($this->readDone);
 
 		$this->blockStartPosition = ftell($this->fh);
 		$this->readDone = FALSE;
@@ -2744,7 +2744,7 @@ class FlacReader {
 	}
 
 	public function readContents() {
-		assert(!$this->readDone);
+		\assert(!$this->readDone);
 		$this->readDone = TRUE;
 		return fread($this->fh, $this->blockLength);
 	}
@@ -2792,7 +2792,7 @@ class RarUnicodeFilename
 	public function decode()
 	{
 		$highByte = $this->encByte();
-		$encDataLen = strlen($this->encData);
+		$encDataLen = \strlen($this->encData);
 		$flagBits = 0;
 
 		while ($this->encPos < $encDataLen) {
@@ -2910,8 +2910,8 @@ class RarUnicodeFilename
 	 */
 	protected function put($low, $high)
 	{
-		$this->output .= chr($low);
-		$this->output .= chr($high);
+		$this->output .= \chr($low);
+		$this->output .= \chr($high);
 		$this->pos++;
 	}
 
