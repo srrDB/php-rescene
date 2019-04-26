@@ -1,7 +1,7 @@
 <?php
 /**
  * PHP Library to read and edit a .srr file. It reads .srs files.
- * Copyright (c) 2011-2017 Gfy
+ * Copyright (c) 2011-2019 Gfy
  *
  * rescene.php is free software, you can redistribute it and/or modify
  * it under the terms of GNU Affero General Public License
@@ -24,7 +24,7 @@
  * LGPLv3 with Affero clause (LAGPL)
  * See http://mo.morsi.org/blog/node/270
  * rescene.php written on 2011-07-27
- * Last version: 2019-02-15
+ * Last version: 2019-04-26
  *
  * Features:
  *	- process a SRR file which returns:
@@ -56,7 +56,7 @@
  *	- Output flag added to indicate if the RARs used compression.
  *	- Support to read SRS files. (AVI/MKV/MP4/WMV/FLAC/MP3)
  *	- Sort stored files inside the SRR.
- *	- OpenSubtitles.org hash support.
+ *	- OpenSubtitles.org/ISDb hash support.
  *	- Extract the SRR meta data of a single RAR set
  *
  *	- nfo compare: strip line endings + new line?
@@ -385,7 +385,7 @@ function processSrrHandle($fileHandle) {
 				}
 				$appName = $block->readSrrAppName();
 				break;
-			case 0x6B: // SRR OSO Hash (blocks at the end of the file)
+			case 0x6B: // SRR ISDb/OSO Hash (blocks at the end of the file)
 				  $block->srrOsoHashFileHeader();
 				$entry = array();
 				$entry['fileName'] = $block->fileName;
@@ -635,14 +635,24 @@ function processSrrHandle($fileHandle) {
 		$last_read = $read;
 	}
 
-	// add sfv CRCs to all the rar files we have found
-	foreach ($sfv['files'] as $key => $val) {
-		// the capitalization between sfv and the actual file isn't always the same
-		$lkey = strtolower($key);
-		if (array_key_exists($lkey, $rar_files)) {
-			$rar_files[$lkey]['fileCrc'] = strtoupper($val);
-			// everything that stays can not be reconstructed (subs from .sfv files)
-			unset($sfv['files'][$key]); // remove data from $sfv
+	// mapping SFV CRC32 -> RAR
+	if (count($rar_files) > 0) {
+		$sfvTotal = count($sfv['files']);
+		addCrcSfvs($sfv, $rar_files);
+
+		if ($sfvTotal === count($sfv['files'])) {
+			// examples: Office.Lady.Sex.Orgv.BID-027.Jav.Censored.DVDRip.XviD-MotTto
+			// Mana.Sakura.STAR-334.Jav.Censored.DVDRip.XviD-MotTto
+			$cleanedMapping = array();
+			foreach ($rar_files as $key => $_value) {
+				$cleanedMapping[trim($key)] = $key;
+			}
+			addCrcSfvs($sfv, $rar_files, $cleanedMapping);
+			if ($sfvTotal === count($sfv['files'])) {
+				array_push($warnings, 'Included SFVs have no SRR stored RAR file matches.');
+			} else {
+				array_push($warnings, 'Stored RAR file names have leading/trailing spaces.');
+			}
 		}
 	}
 
@@ -1569,6 +1579,23 @@ function getVobsubLanguages($srrFile, &$srrInfo = null) {
 }
 
 // Private helper functions -------------------------------------------------------------------------------------------
+
+function addCrcSfvs(&$sfv, &$rar_files, $cleanedMapping = NULL) {
+	// add sfv CRCs to all the rar files we have found
+	foreach ($sfv['files'] as $key => $val) {
+		// the capitalization between sfv and the actual file isn't always the same
+		$lkey = strtolower($key);
+		// when the stored rar file names contain leading/trailing spaces
+		if ($cleanedMapping != NULL && array_key_exists($lkey, $cleanedMapping)) {
+			$lkey = $cleanedMapping[$lkey];
+		}
+		if (array_key_exists($lkey, $rar_files)) {
+			$rar_files[$lkey]['fileCrc'] = strtoupper($val);
+			// everything that stays can not be reconstructed (subs from .sfv files)
+			unset($sfv['files'][$key]); // remove data from $sfv
+		}
+	}
+}
 
 function parseLanguagesDiz($data) {
 	$idx = array();
